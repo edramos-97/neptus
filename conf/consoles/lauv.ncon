@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<console name="Neptus Console" width="1366" height="727" resizable="true" mission-file="../../missions/APDL/missao-apdl.nmisz" main-vehicle="lauv-noptilus-1">
-  <!-- Data saved on 2019-01-31T17:11:30.0Z with Neptus version @VERSION@ (compiled on @DATE@, g@SCM_REV@). -->
+<console name="Neptus Console" width="1366" height="727" resizable="true" mission-file="../../missions/APDL/missao-apdl.nmisz" main-vehicle="lauv-xplore-1">
+  <!-- Data saved on 2019-02-27T14:59:33.0Z with Neptus version 2019.02.1-dev (compiled on 2019-02-26, gtag/20170721-rep17-arpao-835-g588198cf5-dirty). -->
   <mainpanel name="console main panel">
-    <subpanel class="pt.lsts.neptus.console.plugins.containers.MigLayoutContainer" x="0" y="0" width="1348" height="622">
+    <subpanel class="pt.lsts.neptus.console.plugins.containers.MigLayoutContainer" x="0" y="0" width="1366" height="643">
       <properties>
         <entry key="XML Definitions">&lt;profiles&gt;
   &lt;profile name="Normal"&gt;
@@ -25,7 +25,7 @@
   &lt;/profile&gt;
 &lt;/profiles&gt;</entry>
       </properties>
-      <child class="pt.lsts.neptus.console.plugins.AbortPanel" x="237" y="0" width="57" height="50">
+      <child class="pt.lsts.neptus.console.plugins.AbortPanel" x="238" y="0" width="56" height="50">
         <properties>
           <entry key="Button Shape">RECTANGULAR</entry>
         </properties>
@@ -87,12 +87,12 @@
       <child class="pt.lsts.neptus.plugins.map.MapEditor" x="0" y="0" width="0" height="0">
         <properties/>
       </child>
-      <child class="pt.lsts.neptus.console.plugins.planning.MapPanel" x="0" y="0" width="1044" height="622">
+      <child class="pt.lsts.neptus.console.plugins.planning.MapPanel" x="0" y="0" width="1060" height="643">
         <properties>
           <entry key="World Map Transparency">false</entry>
         </properties>
       </child>
-      <child class="pt.lsts.neptus.console.plugins.planning.MissionTreePanel" x="0" y="158" width="294" height="458">
+      <child class="pt.lsts.neptus.console.plugins.planning.MissionTreePanel" x="0" y="162" width="294" height="475">
         <properties/>
       </child>
       <child class="pt.lsts.neptus.console.plugins.planning.MultiVehiclePlanOverlay" x="0" y="0" width="0" height="0">
@@ -104,10 +104,10 @@
       <child class="pt.lsts.neptus.plugins.oplimits.OperationLimitsSubPanel" x="0" y="0" width="95" height="40">
         <properties/>
       </child>
-      <child class="pt.lsts.neptus.console.plugins.planning.PlanControlPanel" x="0" y="0" width="233" height="50">
+      <child class="pt.lsts.neptus.console.plugins.planning.PlanControlPanel" x="0" y="0" width="232" height="50">
         <properties/>
       </child>
-      <child class="pt.lsts.neptus.console.plugins.planning.PlanControlStatePanel" x="0" y="54" width="294" height="100">
+      <child class="pt.lsts.neptus.console.plugins.planning.PlanControlStatePanel" x="0" y="56" width="294" height="100">
         <properties/>
       </child>
       <child class="pt.lsts.neptus.console.plugins.planning.PlanEditor" x="0" y="0" width="0" height="0">
@@ -156,11 +156,18 @@ altitude: ${EstimatedState.alt};
       <child class="pt.lsts.neptus.plugins.sunfish.iridium.feedback.IridiumStatus" x="0" y="0" width="0" height="0">
         <properties/>
       </child>
-      <child class="pt.lsts.neptus.plugins.SweepPlanGen" x="0" y="0" width="0" height="0">
+      <child class="pt.lsts.neptus.plugins.sidescan.console.SidescanRealTimeWaterfall" x="0" y="0" width="0" height="0">
         <properties/>
       </child>
-      <child class="pt.lsts.neptus.console.plugins.planning.PlanWizard" x="0" y="0" width="782" height="553">
+      <child class="pt.lsts.neptus.plugins.sweepplangen.SweepPlanGen" x="0" y="0" width="0" height="0">
         <properties/>
+      </child>
+      <child class="pt.lsts.ripples.RipplesUpload" x="0" y="0" width="0" height="0">
+        <properties>
+          <entry key="synch">false</entry>
+          <entry key="Poll also systems from server">false</entry>
+          <entry key="Synch external systems">false</entry>
+        </properties>
       </child>
     </subpanel>
   </mainpanel>
@@ -194,9 +201,6 @@ altitude: ${EstimatedState.alt};
       <properties/>
     </interaction>
     <interaction class="pt.lsts.neptus.console.plugins.SystemsInteraction">
-      <properties/>
-    </interaction>
-    <interaction class="pt.lsts.neptus.plugins.pddl.MVPlannerInteraction">
       <properties/>
     </interaction>
   </interactions>
