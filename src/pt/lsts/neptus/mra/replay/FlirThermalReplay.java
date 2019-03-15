@@ -1,16 +1,23 @@
 package pt.lsts.neptus.mra.replay;
 
+import com.google.common.eventbus.Subscribe;
 import java.awt.Color;
 import java.awt.Graphics2D;
+import java.awt.geom.Ellipse2D;
+import java.awt.geom.Point2D;
+import java.util.ArrayList;
 import javax.swing.BorderFactory;
 import javax.swing.JLabel;
+import pt.lsts.imc.EntityState;
 import pt.lsts.imc.IMCMessage;
 import pt.lsts.imc.lsf.LsfIndex;
 import pt.lsts.neptus.colormap.ColorMap;
 import pt.lsts.neptus.colormap.ColorMapFactory;
+import pt.lsts.neptus.colormap.ColorMapUtils;
 import pt.lsts.neptus.colormap.ColormapOverlay;
 import pt.lsts.neptus.mp.SystemPositionAndAttitude;
 import pt.lsts.neptus.mp.preview.payloads.CameraFOV;
+import pt.lsts.neptus.mra.MRAProperties;
 import pt.lsts.neptus.mra.importers.IMraLogGroup;
 import pt.lsts.neptus.plugins.NeptusProperty;
 import pt.lsts.neptus.plugins.PluginDescription;
@@ -34,14 +41,20 @@ public class FlirThermalReplay extends ColormapOverlay implements LogReplayLayer
     private LsfIndex index;
     private File dataFile = null;
     private boolean parsed =false, parsing = false;
+    private double replayTimeStamp;
+    private int cameraTimeOffset;
+
+    private Runnable runnable = null;
+    private Thread imageProcessThread = null;
 
     private CameraFOV camFov = CameraFOV.defaultFov();
 
+    private ArrayList<ThermalData> locations = new ArrayList<>();
+
     public FlirThermalReplay() {
         super("Thermal Replay", cellWidth, true, 0);
-        // inverted min max value due to super class implementation
-        this.minVal=60.0;
-        this.maxVal=0.0;
+        this.cameraTimeOffset = MRAProperties.thermalCameraOffset;
+        this.clamp=false;
     }
 
     @Override
@@ -65,41 +78,52 @@ public class FlirThermalReplay extends ColormapOverlay implements LogReplayLayer
         if (!parsed) {
             super.cellWidth = cellWidth;
             parsed = true;
-            parsing = true;
-            new Thread(() -> {
+            runnable = () -> {
+                System.out.println("PARSING DATA");
+                parsing = true;
                 Scanner scanner;
                 try {
                     scanner = new Scanner(dataFile);
                     // ignore header
-                    if(scanner.hasNextLine())
+                    if (scanner.hasNextLine())
                         scanner.nextLine();
+                    LocationType vehicleLocation;
                     while (scanner.hasNextLine()) {
                         String temp = scanner.nextLine();
                         String[] dataFields = temp.split(",");
                         // DataFields=[DateTimeOriginal(0),GPSLatitude(1),GPSLongitude(2),GPSAltitude(3),MAVRoll(4),MAVPitch(5),MAVYaw(6),Temp(°C)(7)]
+                        vehicleLocation = new LocationType(Float.valueOf(dataFields[1]), Float.valueOf(dataFields[2]));
                         camFov.setState(new SystemPositionAndAttitude(
-                                new LocationType(Float.valueOf(dataFields[1]),Float.valueOf(dataFields[2])),
+                                vehicleLocation,
                                 Math.toRadians(Double.valueOf(dataFields[4])),
                                 Math.toRadians(Double.valueOf(dataFields[5])),
                                 Math.toRadians(Double.valueOf(dataFields[6])
-                        )));
-                        addSample(camFov.getLookAt(),Float.valueOf(dataFields[7]));
+                                )));
+                        LocationType lookAt = camFov.getLookAt();
+                        addSample(lookAt, Float.valueOf(dataFields[7]));
+                        locations.add(new ThermalData(vehicleLocation, Double.valueOf(dataFields[0]), Double.valueOf(dataFields[7])));
                     }
-                    generated = generateImage(cm);
+
+                    this.maxVal = MRAProperties.maxThermalValue;
+                    this.minVal = MRAProperties.minThermalValue;
+
+                    generated = generateImage(ColorMapUtils.invertColormap(cm, 255));
 
                     ImageLayer il = getImageLayer();
                     try {
-                        il.saveToFile(new File(index.getLsfFile().getParentFile(),"mra/dvl.layer"));
-                    }
-                    catch (Exception e) {
+                        il.saveToFile(new File(index.getLsfFile().getParentFile(), "mra/dvl.layer"));
+                    } catch (Exception e) {
                         e.printStackTrace();
                     }
                     scanner.close();
                 } catch (FileNotFoundException e) {
                     e.printStackTrace();
                 }
-                parsing=false;
-            }, "FlirThermalOverlay").start();
+                parsing = false;
+                //cm = ColorMapUtils.invertColormap(cm, 255);
+            };
+            imageProcessThread = new Thread(runnable, "FlirThermalOverlay");
+            imageProcessThread.start();
         }
     }
 
@@ -109,7 +133,12 @@ public class FlirThermalReplay extends ColormapOverlay implements LogReplayLayer
     }
 
     @Override
-    public void onMessage(IMCMessage message) {  }
+    public void onMessage(IMCMessage message) { }
+
+    @Subscribe
+    public void on(EntityState message) {
+        replayTimeStamp = message.getTimestamp();
+    }
 
     @Override
     public boolean getVisibleByDefault() {
@@ -122,13 +151,26 @@ public class FlirThermalReplay extends ColormapOverlay implements LogReplayLayer
     }
 
     @Override
-    public void paint(Graphics2D g, StateRenderer2D renderer) {
+    public void paint(Graphics2D go, StateRenderer2D renderer) {
         if(dataFile==null || !dataFile.canRead()){
             return;
         }
 
-        if (!parsing)
+        if(MRAProperties.regenerateThermalImage &&
+                !imageProcessThread.isAlive() &&
+                (this.maxVal != MRAProperties.maxThermalValue || this.minVal != MRAProperties.minThermalValue)) {
+            imageProcessThread = new Thread(runnable,"FlirThermalOverlay");
+            imageProcessThread.start();
+        }
+
+        double tempMaxVal = MRAProperties.maxThermalValue;
+        double tempMinVal = MRAProperties.minThermalValue;
+
+        Graphics2D g = (Graphics2D) go.create();
+
+        if (!parsing) {
             super.paint(g, renderer);
+        }
         else {
             JLabel lbl = new JLabel("Parsing Thermal Data...");
             lbl.setBorder(BorderFactory.createEmptyBorder(3, 3, 3, 3));
@@ -140,6 +182,70 @@ public class FlirThermalReplay extends ColormapOverlay implements LogReplayLayer
             g.translate(10, 10);
             lbl.paint(g);
             g.setTransform(renderer.getIdentity());
+        }
+        g.setTransform(renderer.getIdentity());
+
+        /*LocationType lastLT = null;
+        lastLT = locations.get(0).getLt();
+        Point2D pt = renderer.getScreenPosition(lastLT);
+        g.setColor(Color.green);
+        g.fill(new Ellipse2D.Double(pt.getX() - 4, pt.getY() - 4, 8, 8));*/
+
+        for (int i = 1; i < locations.size(); i++) {
+            ThermalData thermalData =locations.get(i);
+            LocationType lt = thermalData.getLt();
+            Point2D pt = renderer.getScreenPosition(lt);
+            /*g.setColor(Color.red);
+
+            int x = (int) pt.getX();
+            int y = (int) pt.getY();
+
+            g.translate(x,y);
+            g.rotate(lastLT.getXYAngle(lt)+Math.PI);
+
+            float zoomOffset = renderer.getZoom();
+
+            int[] xPoints = {0,  3, -3};
+            int[] yPoints = {4, - 4, - 4};
+            g.fill(new Polygon(xPoints, yPoints,3));
+
+            g.setTransform(renderer.getIdentity());
+            lastLT = lt;*/
+
+            if(thermalData.getTimestamp()+ cameraTimeOffset > replayTimeStamp){
+                double amplitude = tempMaxVal - tempMinVal;
+                g.setColor(cm.getColor((thermalData.getTemperature() - tempMinVal) / (amplitude)));
+                g.fill(new Ellipse2D.Double(pt.getX()-6,pt.getY()-6,12,12));
+                break;
+            }
+
+            g.setTransform(renderer.getIdentity());
+        }
+
+        g.dispose();
+    }
+
+    private class ThermalData {
+        LocationType lt;
+        double timestamp;
+        double temperature;
+
+        ThermalData(LocationType lt, double timestamp, double temperature) {
+            this.lt = lt;
+            this.timestamp = timestamp;
+            this.temperature = temperature;
+        }
+
+        public LocationType getLt() {
+            return lt;
+        }
+
+        public double getTimestamp() {
+            return timestamp;
+        }
+
+        public double getTemperature() {
+            return temperature;
         }
     }
 }

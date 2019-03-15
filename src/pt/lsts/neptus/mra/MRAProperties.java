@@ -96,6 +96,20 @@ public class MRAProperties implements PropertiesProvider {
     @NeptusProperty(name = "Generate DeltaT Process Report", description = "Generate DeltaT process report. Does not generate if already exist the report or the bathy.info is present. (Re-generate the index for successful generation.)", category = "Multibeam")
     public static boolean generateDeltaTProcessReport = false;
 
+    // inverted min max value due to super class implementation
+    // after loading data the scale on screen is also inverted
+    @NeptusProperty(name = "Thermal Scale minimum Value", description = "The minimum value for the color scale in the displayed thermal images", category = "Thermal Flight Replay")
+    public static double minThermalValue = 10.0;
+
+    @NeptusProperty(name = "Thermal Scale maximum Value", description = "The maximum value for the color scale in the displayed thermal images", category = "Thermal Flight Replay")
+    public static double maxThermalValue = 30.0;
+
+    @NeptusProperty(name = "Thermal Camera offset", description = "The time offset between the camera and the vehicle timestamps", category = "Thermal Flight Replay", units = "seconds")
+    public static int thermalCameraOffset = 0;
+
+    @NeptusProperty(name = "Regenerate Image on Scale change", description = "Whether or not to regenerate the thermal image", category = "Thermal Flight Replay")
+    public static boolean regenerateThermalImage = true;
+
     @NeptusProperty(name = "Maximum depth for bathymetry plots", description = "Maximum depth to be used in bathymetry plots.")
     public static double maxBathymDepth = 110;
 
