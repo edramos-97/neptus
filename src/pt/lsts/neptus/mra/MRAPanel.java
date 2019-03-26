@@ -32,16 +32,13 @@
  */
 package pt.lsts.neptus.mra;
 
+import com.l2fprod.common.propertysheet.DefaultProperty;
 import java.awt.BorderLayout;
 import java.awt.Component;
 import java.io.File;
 import java.lang.reflect.Constructor;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Date;
-import java.util.LinkedHashMap;
-import java.util.Vector;
+import java.util.*;
 
 import javax.swing.ImageIcon;
 import javax.swing.JLabel;
@@ -58,9 +55,11 @@ import pt.lsts.imc.IMCMessage;
 import pt.lsts.neptus.NeptusLog;
 import pt.lsts.neptus.console.plugins.MissionChangeListener;
 import pt.lsts.neptus.gui.InfiniteProgressPanel;
+import pt.lsts.neptus.gui.PropertiesProvider;
 import pt.lsts.neptus.i18n.I18n;
 import pt.lsts.neptus.mra.importers.IMraLogGroup;
 import pt.lsts.neptus.mra.plots.LogMarkerListener;
+import pt.lsts.neptus.mra.replay.MRALogReplay;
 import pt.lsts.neptus.mra.visualizations.MRAVisualization;
 import pt.lsts.neptus.plugins.PluginUtils;
 import pt.lsts.neptus.plugins.PluginsRepository;
@@ -283,6 +282,18 @@ public class MRAPanel extends JPanel {
                                 + e2.getMessage() + "]");
             }
         }
+
+        mra.getMraProperties().clearPluginProps();
+        for(MRAVisualization vis : visualizations){
+            if(vis instanceof PropertiesProvider){
+                DefaultProperty[] props = ((PropertiesProvider) vis).getProperties();
+                for (DefaultProperty prop: props){
+                    prop.setName(vis.getClass().getName() + "::" + prop.getName());
+                }
+                System.out.println("props = " + props);
+                mra.getMraProperties().addPluginProps(props);
+            }
+        }
     }
 
     /**
@@ -464,7 +475,7 @@ public class MRAPanel extends JPanel {
             }
         }
     }
-    
+
     public void renameMarker(LogMarker marker,String newLabel) {
         if (LsfReportProperties.generatingReport){
             GuiUtils.infoMessage(getRootPane(),
@@ -472,10 +483,10 @@ public class MRAPanel extends JPanel {
                     I18n.text("Can not rename Marks - Generating Report."));
             return;
         }
-        
+
         for(LogMarker m: logMarkers){
             if(m.getLabel().equals(newLabel)) {
-                int op = GuiUtils.confirmDialog(getRootPane(), "Duplicated Mark Label", "This label already exists in a mark. Do you want to override it?");          
+                int op = GuiUtils.confirmDialog(getRootPane(), "Duplicated Mark Label", "This label already exists in a mark. Do you want to override it?");
                 if (op == JOptionPane.NO_OPTION || op == JOptionPane.CLOSED_OPTION)
                     return; //TODO recall rename method
                 else
@@ -612,6 +623,8 @@ public class MRAPanel extends JPanel {
 
             mainPanel.revalidate();
             mainPanel.repaint();
+
+            mra.getMraProperties().setCurrentVis(vis);
         }
     }
 }

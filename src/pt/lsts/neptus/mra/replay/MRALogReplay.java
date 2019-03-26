@@ -32,11 +32,14 @@
  */
 package pt.lsts.neptus.mra.replay;
 
+import com.l2fprod.common.propertysheet.DefaultProperty;
+import com.l2fprod.common.propertysheet.Property;
 import java.awt.BorderLayout;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.Map.Entry;
 import java.util.Vector;
@@ -53,6 +56,7 @@ import com.google.common.eventbus.AsyncEventBus;
 import com.google.common.eventbus.EventBus;
 import com.google.common.eventbus.Subscribe;
 
+import org.apache.commons.lang3.ArrayUtils;
 import pt.lsts.imc.IMCMessage;
 import pt.lsts.imc.LblBeacon;
 import pt.lsts.imc.LblConfig;
@@ -60,6 +64,7 @@ import pt.lsts.imc.lsf.LsfIndex;
 import pt.lsts.neptus.NeptusLog;
 import pt.lsts.neptus.comm.IMCUtils;
 import pt.lsts.neptus.console.plugins.MissionChangeListener;
+import pt.lsts.neptus.gui.PropertiesProvider;
 import pt.lsts.neptus.gui.ToolbarSwitch;
 import pt.lsts.neptus.mp.MapChangeEvent;
 import pt.lsts.neptus.mp.SystemPositionAndAttitude;
@@ -87,7 +92,7 @@ import pt.lsts.neptus.util.llf.LogUtils;
  * 
  */
 @PluginDescription(name = "Mission Replay", icon = "pt/lsts/neptus/mra/replay/replay.png")
-public class MRALogReplay extends SimpleMRAVisualization implements LogMarkerListener, MissionChangeListener {
+public class MRALogReplay extends SimpleMRAVisualization implements LogMarkerListener, MissionChangeListener, PropertiesProvider {
 
     private static final long serialVersionUID = 1L;
     private LsfIndex index;
@@ -106,6 +111,16 @@ public class MRALogReplay extends SimpleMRAVisualization implements LogMarkerLis
     public MRALogReplay(MRAPanel panel) {
         super(panel);
         this.panel = panel;
+
+        for (Entry<String, Class<? extends LogReplayLayer>> entry : PluginsRepository.getReplayLayers().entrySet()) {
+            try {
+                LogReplayLayer layer = PluginsRepository.getPlugin(entry.getKey(), LogReplayLayer.class);
+                layers.add(layer);
+            }
+            catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
     }
     
     
@@ -295,7 +310,7 @@ public class MRALogReplay extends SimpleMRAVisualization implements LogMarkerLis
         replayBus.register(this);
         r2d = new StateRenderer2D();
         layersToolbar = new JToolBar("Layers", JToolBar.VERTICAL);
-        for (Entry<String, Class<? extends LogReplayLayer>> entry : PluginsRepository.getReplayLayers().entrySet()) {
+        /*for (Entry<String, Class<? extends LogReplayLayer>> entry : PluginsRepository.getReplayLayers().entrySet()) {
             try {
                 LogReplayLayer layer = PluginsRepository.getPlugin(entry.getKey(), LogReplayLayer.class);
                 layers.add(layer);
@@ -303,7 +318,7 @@ public class MRALogReplay extends SimpleMRAVisualization implements LogMarkerLis
             catch (Exception e) {
                 e.printStackTrace();
             }
-        }
+        }*/
         for (Entry<String, Class<? extends LogReplayPanel>> entry : PluginsRepository.listExtensions(
                 LogReplayPanel.class).entrySet()) {
             try {
@@ -466,4 +481,34 @@ public class MRALogReplay extends SimpleMRAVisualization implements LogMarkerLis
         return replayBus;
     }
 
+    @Override
+    public DefaultProperty[] getProperties() {
+        DefaultProperty[] props = new DefaultProperty[0];
+        for (LogReplayLayer layer : layers){
+            DefaultProperty[] tmpProps = PluginUtils.getPluginProperties(layer);
+            System.out.println("tmpProps = " + Arrays.toString(tmpProps));
+            for (DefaultProperty prop : tmpProps){
+                prop.setCategory(layer.getName() + ' ' +prop.getCategory());
+                prop.setName(layer.getName() + ' ' + prop.getName());
+            }
+            props = ArrayUtils.addAll(props,tmpProps);
+        }
+        System.out.println("props = " + props);
+        return props;
+    }
+
+    @Override
+    public void setProperties(Property[] properties) {
+
+    }
+
+    @Override
+    public String getPropertiesDialogTitle() {
+        return null;
+    }
+
+    @Override
+    public String[] getPropertiesErrors(Property[] properties) {
+        return new String[0];
+    }
 }
