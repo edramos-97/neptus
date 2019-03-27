@@ -118,6 +118,8 @@ public class MRAProperties implements PropertiesProvider {
 
     private MRAVisualization vis;
     private ArrayList<DefaultProperty> pluginProps = new ArrayList<>(0);
+
+    // property name -> value; PropertyNAme in format "[visualization class name]::[property name]"
     private HashMap<String,Object> loadedPluginProps = new HashMap<>();
 
     private String pluginSeparator = "::";
@@ -185,6 +187,7 @@ public class MRAProperties implements PropertiesProvider {
                 properties.add(prop);
             }
         }
+        System.out.println("properties = " + properties);
         return properties;
     }
 
@@ -241,6 +244,20 @@ public class MRAProperties implements PropertiesProvider {
 
     void setCurrentVis(MRAVisualization vis) {
         this.vis = vis;
+        DefaultProperty[] props = new DefaultProperty[0];
+        if(vis instanceof PropertiesProvider){
+            for (DefaultProperty prop : getProperties()){
+                DefaultProperty cloneProp = (DefaultProperty)prop.clone();
+                String name = cloneProp.getName();
+                if(name.contains(vis.getClass().getName())){
+                    int index = name.indexOf(pluginSeparator);
+                    cloneProp.setName(name.substring(index+pluginSeparator.length()));
+                    props = ArrayUtils.add(props, cloneProp);
+                }
+            }
+            ((PropertiesProvider) vis).setProperties(props);
+        }
+
     }
 
     void clearPluginProps() {
