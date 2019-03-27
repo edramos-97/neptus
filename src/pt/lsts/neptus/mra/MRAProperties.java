@@ -49,6 +49,7 @@ import com.l2fprod.common.propertysheet.Property;
 
 import java.util.Properties;
 import java.util.Vector;
+import org.apache.commons.lang3.ArrayUtils;
 import pt.lsts.neptus.NeptusLog;
 import pt.lsts.neptus.gui.PropertiesEditor;
 import pt.lsts.neptus.gui.PropertiesProvider;
@@ -119,6 +120,9 @@ public class MRAProperties implements PropertiesProvider {
     private ArrayList<DefaultProperty> pluginProps = new ArrayList<>(0);
     private HashMap<String,Object> loadedPluginProps = new HashMap<>();
 
+    private String pluginSeparator = "::";
+
+
     {
         try {
             load(new File("conf/mra.properties"));
@@ -166,6 +170,7 @@ public class MRAProperties implements PropertiesProvider {
 
         for (DefaultProperty prop : pluginProps){
             if (loadedPluginProps.containsKey(prop.getName())){
+                // if property was loaded the set loaded value
                 String propValue = (String)loadedPluginProps.get(prop.getName());
                 try {
                     ((PluginProperty)prop).unserialize(propValue);
@@ -228,17 +233,14 @@ public class MRAProperties implements PropertiesProvider {
 
         for (Entry<Object,Object> entry: props.entrySet()){
             String key = (String)entry.getKey();
-            if(key.contains("::")){
+            if(key.contains(pluginSeparator)){
                 loadedPluginProps.put(key,entry.getValue());
             }
         }
-        props.list(System.out);
     }
 
     void setCurrentVis(MRAVisualization vis) {
-        /*if(vis instanceof PropertiesProvider){
-        // TODO: 26/03/2019  set visualization properties
-        }*/
+        this.vis = vis;
     }
 
     void clearPluginProps() {
@@ -257,10 +259,13 @@ public class MRAProperties implements PropertiesProvider {
         String prefix = "visibilityOf";
         int prefixLength = prefix.length();
 
+        Property[] visProps = new Property[0];
+
         for (Property p : properties) {
-            if (p.getName().startsWith(prefix)) {
+            String name = p.getName();
+            if (name.startsWith(prefix)) {
                 try {
-                    Class<?> plugin = Class.forName(p.getName().substring(prefixLength));
+                    Class<?> plugin = Class.forName(name.substring(prefixLength));
                     visiblePlots.put(plugin, (Boolean) p.getValue());
                 }
                 catch (Exception e) {
@@ -268,9 +273,18 @@ public class MRAProperties implements PropertiesProvider {
                 }
             }
 
-            if(p.getName().contains("::")){
-                loadedPluginProps.put(p.getName(),p.getValue().toString());
+            if(name.contains(pluginSeparator)){
+                // TODO: 27/03/2019 Check cast to pluginproperty for serialization
+                loadedPluginProps.put(name,p.getValue().toString());
+                int index = name.indexOf(pluginSeparator);
+                ((DefaultProperty) p).setName(name.substring(index+pluginSeparator.length()));
+
+                visProps = ArrayUtils.add(visProps,p);
             }
+        }
+
+        if (vis instanceof PropertiesProvider){
+            ((PropertiesProvider) vis).setProperties(visProps);
         }
     }
 

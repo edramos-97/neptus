@@ -290,7 +290,6 @@ public class MRAPanel extends JPanel {
                 for (DefaultProperty prop: props){
                     prop.setName(vis.getClass().getName() + "::" + prop.getName());
                 }
-                System.out.println("props = " + props);
                 mra.getMraProperties().addPluginProps(props);
             }
         }

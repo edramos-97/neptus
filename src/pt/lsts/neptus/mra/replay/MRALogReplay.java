@@ -40,6 +40,7 @@ import java.awt.event.ActionListener;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.Map.Entry;
 import java.util.Vector;
@@ -86,6 +87,7 @@ import pt.lsts.neptus.types.mission.MissionType;
 import pt.lsts.neptus.util.GuiUtils;
 import pt.lsts.neptus.util.ImageUtils;
 import pt.lsts.neptus.util.llf.LogUtils;
+import ucar.jpeg.jj2000.j2k.util.ArrayUtil;
 
 /**
  * @author zp
@@ -486,20 +488,33 @@ public class MRALogReplay extends SimpleMRAVisualization implements LogMarkerLis
         DefaultProperty[] props = new DefaultProperty[0];
         for (LogReplayLayer layer : layers){
             DefaultProperty[] tmpProps = PluginUtils.getPluginProperties(layer);
-            System.out.println("tmpProps = " + Arrays.toString(tmpProps));
             for (DefaultProperty prop : tmpProps){
                 prop.setCategory(layer.getName() + ' ' +prop.getCategory());
-                prop.setName(layer.getName() + ' ' + prop.getName());
+                prop.setName(layer.getName() + prop.getName());
             }
             props = ArrayUtils.addAll(props,tmpProps);
         }
-        System.out.println("props = " + props);
         return props;
     }
 
     @Override
     public void setProperties(Property[] properties) {
-
+        for (LogReplayLayer layer : layers){
+            Property[] currLayerProps = new Property[0];
+            for (Property prop : properties){
+                String name = layer.getName();
+                if(prop.getName().contains(name)){
+                    int index = prop.getName().indexOf(name);
+                    System.out.println("prop.getName().substring(index) = " + prop.getName().substring(index+name.length()));
+                    ((DefaultProperty) prop).setName(prop.getName().substring(index+name.length()));
+                    // adding constant 1 for extra space in category name
+                    ((DefaultProperty) prop).setCategory(prop.getCategory().substring(index+name.length()+1));
+                    currLayerProps = ArrayUtils.add(currLayerProps,prop);
+                }
+            }
+            System.out.println("Arrays.toString(currLayerProps) = " + Arrays.toString(currLayerProps));
+            PluginUtils.setPluginProperties(layer, currLayerProps);
+        }
     }
 
     @Override
