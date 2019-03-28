@@ -122,8 +122,8 @@ public class MRAProperties implements PropertiesProvider {
     // property name -> value; PropertyNAme in format "[visualization class name]::[property name]"
     private HashMap<String,Object> loadedPluginProps = new HashMap<>();
 
-    private String pluginSeparator = "::";
-
+    private final String pluginSeparator = "::";
+    private final String visibilityPrefix = "visibilityOf";
 
     {
         try {
@@ -146,7 +146,7 @@ public class MRAProperties implements PropertiesProvider {
         for (Entry<String, Class<? extends MRAVisualization>> viz : allVisualizations.entrySet()) {
             Class<?> pluginClass = viz.getValue();
             boolean visible = isVisualizationActive(pluginClass);
-            DefaultProperty dp = PropertiesEditor.getPropertyInstance("visibilityOf" + pluginClass.getName(),
+            DefaultProperty dp = PropertiesEditor.getPropertyInstance(visibilityPrefix + pluginClass.getName(),
                     Boolean.class, visible, true);
 
             dp.setDisplayName(PluginUtils.getPluginName(pluginClass));
@@ -228,7 +228,7 @@ public class MRAProperties implements PropertiesProvider {
         PluginUtils.loadProperties(props, this);
         
         for (Class<?> c : PluginsRepository.getMraVisualizations().values()) {
-            String propName = "visibilityOf" + c.getName();
+            String propName = visibilityPrefix + c.getName();
             if (props.containsKey(propName))
                 visiblePlots.put(c, props.get(propName).equals("true"));
             else
@@ -272,14 +272,13 @@ public class MRAProperties implements PropertiesProvider {
     @Override
     public void setProperties(Property[] properties) {
         PluginUtils.setPluginProperties(this, properties);
-        String prefix = "visibilityOf";
-        int prefixLength = prefix.length();
+        int prefixLength = visibilityPrefix.length();
 
         Property[] visProps = new Property[0];
 
         for (Property p : properties) {
             String name = p.getName();
-            if (name.startsWith(prefix)) {
+            if (name.startsWith(visibilityPrefix)) {
                 try {
                     Class<?> plugin = Class.forName(name.substring(prefixLength));
                     visiblePlots.put(plugin, (Boolean) p.getValue());
