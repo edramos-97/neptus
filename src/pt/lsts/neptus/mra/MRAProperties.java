@@ -141,12 +141,11 @@ public class MRAProperties implements PropertiesProvider {
     public synchronized Collection<DefaultProperty> getVisibilityProperties() {
         LinkedHashMap<String, Class<? extends MRAVisualization>> allVisualizations = PluginsRepository
                 .getMraVisualizations();
-        ArrayList<DefaultProperty> props = new ArrayList<DefaultProperty>();
+        ArrayList<DefaultProperty> props = new ArrayList<>();
 
         for (Entry<String, Class<? extends MRAVisualization>> viz : allVisualizations.entrySet()) {
             Class<?> pluginClass = viz.getValue();
             boolean visible = isVisualizationActive(pluginClass);
-            // System.out.println(visible);
             DefaultProperty dp = PropertiesEditor.getPropertyInstance("visibilityOf" + pluginClass.getName(),
                     Boolean.class, visible, true);
 
@@ -171,23 +170,25 @@ public class MRAProperties implements PropertiesProvider {
         ArrayList<DefaultProperty> properties = new ArrayList<>(0);
 
         for (DefaultProperty prop : pluginProps){
-            if (loadedPluginProps.containsKey(prop.getName())){
-                // if property was loaded the set loaded value
-                String propValue = (String)loadedPluginProps.get(prop.getName());
-                try {
-                    ((PluginProperty)prop).unserialize(propValue);
+            String name = prop.getName();
+            if(name.contains(vis.getClass().getName())){
+                if (loadedPluginProps.containsKey(name)){
+                    // if property was loaded the set loaded value
+                    String propValue = (String)loadedPluginProps.get(name);
+                    try {
+                        ((PluginProperty)prop).unserialize(propValue);
+                        properties.add(prop);
+                    }
+                    catch (Exception e) {
+                        e.printStackTrace();
+                        NeptusLog.pub().warn("Error while unserializing plugin property");
+                    }
+                }
+                else {
                     properties.add(prop);
                 }
-                catch (Exception e) {
-                    e.printStackTrace();
-                    NeptusLog.pub().warn("Error while unserializing plugin property");
-                }
-            }
-            else {
-                properties.add(prop);
             }
         }
-        System.out.println("properties = " + properties);
         return properties;
     }
 
@@ -266,12 +267,10 @@ public class MRAProperties implements PropertiesProvider {
 
     void addPluginProps(DefaultProperty[] properties) {
         pluginProps.addAll(Arrays.asList(properties));
-        System.out.println("pluginProps = " + pluginProps);
     }
 
     @Override
     public void setProperties(Property[] properties) {
-        System.out.println("Setting properties");
         PluginUtils.setPluginProperties(this, properties);
         String prefix = "visibilityOf";
         int prefixLength = prefix.length();
