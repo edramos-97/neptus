@@ -484,12 +484,14 @@ public class MRALogReplay extends SimpleMRAVisualization implements LogMarkerLis
     public DefaultProperty[] getProperties() {
         DefaultProperty[] props = new DefaultProperty[0];
         for (LogReplayLayer layer : layers){
-            DefaultProperty[] tmpProps = PluginUtils.getPluginProperties(layer);
-            for (DefaultProperty prop : tmpProps){
-                prop.setCategory(layer.getName() + ' ' +prop.getCategory());
-                prop.setName(layer.getName() + prop.getName());
+            if (source != null && layer.canBeApplied(source,Context.MRA)) {
+                DefaultProperty[] tmpProps = PluginUtils.getPluginProperties(layer);
+                for (DefaultProperty prop : tmpProps){
+                    prop.setCategory(layer.getName() + ' ' +prop.getCategory());
+                    prop.setName(layer.getName() + prop.getName());
+                }
+                props = ArrayUtils.addAll(props,tmpProps);
             }
-            props = ArrayUtils.addAll(props,tmpProps);
         }
         return props;
     }

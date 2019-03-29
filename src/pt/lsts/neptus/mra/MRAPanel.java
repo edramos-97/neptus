@@ -353,6 +353,9 @@ public class MRAPanel extends JPanel {
 
         openVisualizationList.clear();
 
+        mra.getMraProperties().setCurrentVis(null);
+        mra.getMraProperties().clearPluginProps();
+
         saveMarkers();
 
         source.cleanup();

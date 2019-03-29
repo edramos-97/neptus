@@ -171,7 +171,7 @@ public class MRAProperties implements PropertiesProvider {
 
         for (DefaultProperty prop : pluginProps){
             String name = prop.getName();
-            if(name.contains(vis.getClass().getName())){
+            if(vis != null && name.contains(vis.getClass().getName())){
                 if (loadedPluginProps.containsKey(name)){
                     // if property was loaded the set loaded value
                     String propValue = (String)loadedPluginProps.get(name);
