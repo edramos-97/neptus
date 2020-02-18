@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <console name="Neptus Console" width="1366" height="727" resizable="true" mission-file="../../missions/APDL/missao-apdl.nmisz" main-vehicle="lauv-xplore-1">
-  <!-- Data saved on 2019-11-28T15:46:17.0Z with Neptus version 2019.10.2-dev (compiled on 2019-11-28, gneptus-2019.10.1-177-g47997f090-dirty). -->
+  <!-- Data saved on 2020-02-18T17:16:45.0Z with Neptus version @VERSION@ (compiled on @DATE@, g@SCM_REV@). -->
   <mainpanel name="console main panel">
-    <subpanel class="pt.lsts.neptus.console.plugins.containers.MigLayoutContainer" x="0" y="0" width="1366" height="643">
+    <subpanel class="pt.lsts.neptus.console.plugins.containers.MigLayoutContainer" x="0" y="0" width="1350" height="632">
       <properties>
         <entry key="XML Definitions">&lt;profiles&gt;
   &lt;profile name="Normal"&gt;
@@ -25,7 +25,7 @@
   &lt;/profile&gt;
 &lt;/profiles&gt;</entry>
       </properties>
-      <child class="pt.lsts.neptus.console.plugins.AbortPanel" x="238" y="0" width="56" height="50">
+      <child class="pt.lsts.neptus.console.plugins.AbortPanel" x="237" y="0" width="57" height="50">
         <properties>
           <entry key="Button Shape">RECTANGULAR</entry>
         </properties>
@@ -87,12 +87,12 @@
       <child class="pt.lsts.neptus.plugins.map.MapEditor" x="0" y="0" width="0" height="0">
         <properties/>
       </child>
-      <child class="pt.lsts.neptus.console.plugins.planning.MapPanel" x="0" y="0" width="1060" height="643">
+      <child class="pt.lsts.neptus.console.plugins.planning.MapPanel" x="0" y="0" width="1046" height="632">
         <properties>
           <entry key="World Map Transparency">false</entry>
         </properties>
       </child>
-      <child class="pt.lsts.neptus.console.plugins.planning.MissionTreePanel" x="0" y="162" width="294" height="475">
+      <child class="pt.lsts.neptus.console.plugins.planning.MissionTreePanel" x="0" y="158" width="294" height="468">
         <properties/>
       </child>
       <child class="pt.lsts.neptus.console.plugins.planning.MultiVehiclePlanOverlay" x="0" y="0" width="0" height="0">
@@ -104,10 +104,10 @@
       <child class="pt.lsts.neptus.plugins.oplimits.OperationLimitsSubPanel" x="0" y="0" width="95" height="40">
         <properties/>
       </child>
-      <child class="pt.lsts.neptus.console.plugins.planning.PlanControlPanel" x="0" y="0" width="232" height="50">
+      <child class="pt.lsts.neptus.console.plugins.planning.PlanControlPanel" x="0" y="0" width="233" height="50">
         <properties/>
       </child>
-      <child class="pt.lsts.neptus.console.plugins.planning.PlanControlStatePanel" x="0" y="56" width="294" height="100">
+      <child class="pt.lsts.neptus.console.plugins.planning.PlanControlStatePanel" x="0" y="54" width="294" height="100">
         <properties/>
       </child>
       <child class="pt.lsts.neptus.console.plugins.planning.PlanEditor" x="0" y="0" width="0" height="0">
@@ -169,13 +169,17 @@
       <child class="pt.lsts.neptus.plugins.sweepplangen.SweepPlanGen" x="0" y="0" width="0" height="0">
         <properties/>
       </child>
-      <child class="pt.lsts.neptus.plugins.rtplot.RealTimePlotGroovy" x="0" y="0" width="300" height="272">
+      <child class="pt.lsts.neptus.plugins.rtplot.RealTimePlotGroovy" x="0" y="0" width="0" height="0">
         <properties/>
       </child>
       <child class="pt.lsts.ripples.RipplesUpdater" x="0" y="0" width="0" height="0">
-        <properties>
-          <entry key="connected">false</entry>
-        </properties>
+        <properties/>
+      </child>
+      <child class="pt.lsts.neptus.plugins.acoustic.MantaOperations" x="0" y="0" width="0" height="0">
+        <properties/>
+      </child>
+      <child class="pt.lsts.neptus.plugins.dataSync.DataSynchronization" x="0" y="0" width="489" height="401">
+        <properties/>
       </child>
     </subpanel>
   </mainpanel>
