@@ -32,6 +32,7 @@
 
 package pt.lsts.neptus.plugins.dataSync;
 
+import com.google.common.eventbus.Subscribe;
 import pt.lsts.imc.IMCMessage;
 import pt.lsts.neptus.comm.manager.imc.ImcId16;
 import pt.lsts.neptus.comm.manager.imc.ImcMsgManager;
@@ -57,8 +58,15 @@ public class DataSynchronization extends ConsolePanel {
 
     JTextArea outputField = new JTextArea();
     MessageListener<MessageInfo, IMCMessage> listener = (messageInfo, imcMessage) -> {
-        /*Test Listener*/
+
     };
+
+    @Subscribe
+    public void on(ExampleDataIMCMessage message) {
+
+    }
+
+
     private Action refreshAction = new AbstractAction() {
         @Override
         public void actionPerformed(ActionEvent e) {
