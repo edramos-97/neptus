@@ -34,7 +34,7 @@ package pt.lsts.neptus.plugins.dataSync;
 
 import com.google.common.eventbus.Subscribe;
 import pt.lsts.imc.IMCMessage;
-import pt.lsts.neptus.comm.manager.imc.ImcId16;
+import pt.lsts.imc.TextMessage;
 import pt.lsts.neptus.comm.manager.imc.ImcMsgManager;
 import pt.lsts.neptus.console.ConsoleLayout;
 import pt.lsts.neptus.console.ConsolePanel;
@@ -47,6 +47,7 @@ import pt.lsts.neptus.plugins.Popup.POSITION;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
+import pt.lsts.neptus.plugins.update.Periodic;
 
 
 /**
@@ -61,11 +62,16 @@ public class DataSynchronization extends ConsolePanel {
 
     };
 
-    @Subscribe
-    public void on(ExampleDataIMCMessage message) {
-
+    @Periodic(millisBetweenUpdates = 3 * 1000)
+    public void doIt () {
+        System.out.println("hello");
+        ImcMsgManager.getManager().broadcastToCCUs(new TextMessage("Laptop","MyTextMessage"));
     }
 
+    @Subscribe
+    public void on(TextMessage message) {
+        System.out.println(message);
+    }
 
     private Action refreshAction = new AbstractAction() {
         @Override
@@ -97,7 +103,6 @@ public class DataSynchronization extends ConsolePanel {
         add(outputField, BorderLayout.CENTER);
         add(refreshBtn, BorderLayout.NORTH);
 
-
-        getConsole().getImcMsgManager().getCommInfoById(new ImcId16(0x4b01)).addListener(listener);
+        getConsole().getImcMsgManager().addListener(listener);
     }
 }
