@@ -35,6 +35,7 @@ package pt.lsts.neptus.plugins.dataSync;
 import com.google.common.eventbus.Subscribe;
 import pt.lsts.imc.IMCMessage;
 import pt.lsts.imc.TextMessage;
+import pt.lsts.neptus.comm.manager.imc.ImcId16;
 import pt.lsts.neptus.comm.manager.imc.ImcMsgManager;
 import pt.lsts.neptus.console.ConsoleLayout;
 import pt.lsts.neptus.console.ConsolePanel;
@@ -43,11 +44,11 @@ import pt.lsts.neptus.messages.listener.MessageListener;
 import pt.lsts.neptus.plugins.PluginDescription;
 import pt.lsts.neptus.plugins.Popup;
 import pt.lsts.neptus.plugins.Popup.POSITION;
+import pt.lsts.neptus.plugins.update.Periodic;
 
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
-import pt.lsts.neptus.plugins.update.Periodic;
 
 
 /**
@@ -62,15 +63,18 @@ public class DataSynchronization extends ConsolePanel {
 
     };
 
-    @Periodic(millisBetweenUpdates = 3 * 1000)
+    @Periodic(millisBetweenUpdates = 10 * 1000)
     public void doIt () {
         System.out.println("hello");
-        ImcMsgManager.getManager().broadcastToCCUs(new TextMessage("Laptop","MyTextMessage"));
+        TextMessage myMessage = new TextMessage("Desktop", "MyDesktopMessage");
+        ImcMsgManager.getManager().sendMessage(myMessage, ImcId16.BROADCAST_ID,"Broadcast");
     }
 
     @Subscribe
     public void on(TextMessage message) {
-        System.out.println(message);
+        if(ImcMsgManager.getManager().getLocalId().intValue() != message.getSrc()){
+          System.out.println(message.getText());
+        }
     }
 
     private Action refreshAction = new AbstractAction() {
