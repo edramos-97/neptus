@@ -32,21 +32,15 @@
 
 package pt.lsts.neptus.plugins.dataSync;
 
-import com.google.common.eventbus.Subscribe;
-import pt.lsts.imc.IMCMessage;
-import pt.lsts.imc.TextMessage;
-import pt.lsts.neptus.comm.manager.imc.ImcId16;
-import pt.lsts.neptus.comm.manager.imc.ImcMsgManager;
 import pt.lsts.neptus.console.ConsoleLayout;
 import pt.lsts.neptus.console.ConsolePanel;
-import pt.lsts.neptus.messages.listener.MessageInfo;
-import pt.lsts.neptus.messages.listener.MessageListener;
 import pt.lsts.neptus.plugins.PluginDescription;
 import pt.lsts.neptus.plugins.Popup;
 import pt.lsts.neptus.plugins.Popup.POSITION;
-import pt.lsts.neptus.plugins.update.Periodic;
+import pt.lsts.neptus.util.GuiUtils;
 
 import javax.swing.*;
+import javax.swing.border.EmptyBorder;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 
@@ -59,23 +53,7 @@ import java.awt.event.ActionEvent;
 public class DataSynchronization extends ConsolePanel {
 
     JTextArea outputField = new JTextArea();
-    MessageListener<MessageInfo, IMCMessage> listener = (messageInfo, imcMessage) -> {
 
-    };
-
-    @Periodic(millisBetweenUpdates = 10 * 1000)
-    public void doIt () {
-        System.out.println("hello");
-        TextMessage myMessage = new TextMessage("Desktop", "MyDesktopMessage");
-        ImcMsgManager.getManager().sendMessage(myMessage, ImcId16.BROADCAST_ID,"Broadcast");
-    }
-
-    @Subscribe
-    public void on(TextMessage message) {
-        if(ImcMsgManager.getManager().getLocalId().intValue() != message.getSrc()){
-          System.out.println(message.getText());
-        }
-    }
 
     private Action refreshAction = new AbstractAction() {
         @Override
@@ -92,21 +70,61 @@ public class DataSynchronization extends ConsolePanel {
 
     @Override
     public void cleanSubPanel() {
-        ImcMsgManager imcMsgManager = getConsole().getImcMsgManager();
-        System.out.println(imcMsgManager.getAllServicesString());
-        System.out.println(imcMsgManager.getCommInfo());
+        System.out.println("cleaning subpanel");
+//        ImcMsgManager imcMsgManager = getConsole().getImcMsgManager();
+//        System.out.println(imcMsgManager.getAllServicesString());
+//        System.out.println(imcMsgManager.getCommInfo());
     }
 
     @Override
     public void initSubPanel() {
         removeAll();
         setLayout(new BorderLayout(5, 5));
-        JButton refreshBtn = new JButton("refresh");
-        refreshBtn.setAction(refreshAction);
+        JTabbedPane tabsPane = new JTabbedPane(SwingConstants.RIGHT);
+        JButton refreshBtn = new JButton("Refresh");
         refreshBtn.setSize(100, 30);
+        refreshBtn.setText("Refresh");
+        refreshBtn.setAction(refreshAction);
         add(outputField, BorderLayout.CENTER);
         add(refreshBtn, BorderLayout.NORTH);
+    }
 
-        getConsole().getImcMsgManager().addListener(listener);
+    public static JSplitPane getStatusPanel() {
+
+        JPanel statusPanel = new JPanel();
+        statusPanel.setLayout(new BoxLayout(statusPanel,BoxLayout.PAGE_AXIS));
+        statusPanel.setBorder(new EmptyBorder(10,10,10,10));
+
+        JLabel label1 = new JLabel("IDLE");
+        label1.setOpaque(true);
+        label1.setMaximumSize(new Dimension(Short.MAX_VALUE, label1.getMaximumSize().height * 5));
+        label1.setHorizontalAlignment(SwingConstants.CENTER);
+        label1.setBorder(BorderFactory.createLineBorder(Color.RED,3, true));
+        label1.setBackground(Color.green);
+
+
+        statusPanel.add(label1);
+//        statusPanel.add(button2);
+//        statusPanel.add(Box.createVerticalGlue());
+//        statusPanel.add(button3);
+
+
+        JButton button4 = new JButton("RESET");
+        JSplitPane statusSplitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT,statusPanel,button4);
+        statusSplitPane.setEnabled(false);
+        statusSplitPane.setDividerLocation(0.40);
+        return statusSplitPane;
+    }
+
+    public static void main(String[] args) {
+        JTabbedPane tabsPane = new JTabbedPane(SwingConstants.TOP);
+
+        JSplitPane statusPane = getStatusPanel();
+        tabsPane.add("Status", statusPane);
+
+        GuiUtils.testFrame(tabsPane,"DataSync", 800, 600);
+
+        statusPane.setDividerLocation(0.40);
+        statusPane.setDividerSize(0);
     }
 }
