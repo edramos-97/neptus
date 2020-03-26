@@ -83,7 +83,6 @@ public class ElectionManager {
         setState(ElectionState.RESET);
     }
 
-
     @Subscribe
     public void on(Event eventMsg) {
         String topic = eventMsg.getTopic();
@@ -104,13 +103,29 @@ public class ElectionManager {
         this.state = state;
     }
 
+    public String getStateColor() {
+        return this.state.color;
+    }
+
     enum ElectionState {
-        RESET,
-        STARTING,
-        IDLE,
-        ELECTED,
-        CANDIDATE,
-        ACCEPTING,
+        RESET("#40bbff"),
+        STARTING("#eeff00"),
+        IDLE("#40bbff"),
+        ELECTED("#85ff65"),
+        CANDIDATE("#eeff00"),
+        ACCEPTING("#eeff00"),
+        ERROR("#ff4130");
+
+        public String color;
+
+        ElectionState(String color) {
+            this.color = color;
+        }
+
+        @Override
+        public String toString() {
+            return color;
+        }
     }
 
     /**

@@ -32,15 +32,19 @@
 
 package pt.lsts.neptus.plugins.dataSync;
 
+import pt.lsts.neptus.comm.manager.imc.ImcMsgManager;
+import pt.lsts.neptus.comm.manager.imc.SystemImcMsgCommInfo;
 import pt.lsts.neptus.console.ConsoleLayout;
 import pt.lsts.neptus.console.ConsolePanel;
 import pt.lsts.neptus.plugins.PluginDescription;
 import pt.lsts.neptus.plugins.Popup;
 import pt.lsts.neptus.plugins.Popup.POSITION;
+import pt.lsts.neptus.plugins.update.Periodic;
 import pt.lsts.neptus.util.GuiUtils;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
+import javax.swing.border.LineBorder;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 
@@ -48,10 +52,13 @@ import java.awt.event.ActionEvent;
 /**
  * @author Eduardo Ramos
  */
-@PluginDescription(name = "Automated Data Synchronization", description = "Options for automated data sharing between CCUs and vehicles")
-@Popup(pos = POSITION.RIGHT, width = 500, height = 600)
+@PluginDescription(name = "Automated Data Synchronization", description = "Options for automated data sharing between" +
+        " CCUs and vehicles")
+@Popup(pos = POSITION.RIGHT, width = 800, height = 600)
 public class DataSynchronization extends ConsolePanel {
 
+    // Interface Components
+    static JList<String> connectedSystems = null;
     JTextArea outputField = new JTextArea();
 
 
@@ -68,6 +75,76 @@ public class DataSynchronization extends ConsolePanel {
         super(console);
     }
 
+    public static JSplitPane getStatusPanel() {
+
+        JPanel statusPanel = new JPanel();
+        statusPanel.setLayout(new BoxLayout(statusPanel, BoxLayout.PAGE_AXIS));
+        statusPanel.setBorder(new EmptyBorder(10, 10, 10, 10));
+
+        JLabel label1 = new JLabel("Local Network State");
+        JLabel localState = new JLabel("IDLE");
+        localState.setOpaque(true);
+        localState.setMaximumSize(new Dimension(Short.MAX_VALUE, localState.getMaximumSize().height * 5));
+        localState.setHorizontalAlignment(SwingConstants.CENTER);
+        localState.setBorder(BorderFactory.createLineBorder(Color.BLACK, 2, true));
+        localState.setBackground(Color.decode(ElectionManager.getManager().getStateColor()));
+
+        JLabel label2 = new JLabel("Wide Area Network State");
+        JLabel wideAreaState = new JLabel("IDLE");
+        wideAreaState.setOpaque(true);
+        wideAreaState.setMaximumSize(new Dimension(Short.MAX_VALUE, wideAreaState.getMaximumSize().height * 5));
+        wideAreaState.setHorizontalAlignment(SwingConstants.CENTER);
+        wideAreaState.setBorder(BorderFactory.createLineBorder(Color.BLACK, 2, true));
+        wideAreaState.setBackground(Color.decode(ElectionManager.getManager().getStateColor()));
+
+        statusPanel.add(label1);
+        statusPanel.add(localState);
+        statusPanel.add(Box.createRigidArea(new Dimension(0, 10)));
+        statusPanel.add(label2);
+        statusPanel.add(wideAreaState);
+        statusPanel.add(Box.createVerticalGlue());
+
+        JPanel systemsPanel = new JPanel();
+        systemsPanel.setLayout(new BorderLayout(10,10));
+        systemsPanel.setBorder(new EmptyBorder(10, 10, 10, 10));
+
+        JLabel label3 = new JLabel("Connected Systems");
+        connectedSystems = new JList<>();
+        connectedSystems.setBorder(new LineBorder(Color.BLACK,2,true));
+        connectedSystems.setBackground(Color.WHITE);
+
+        systemsPanel.add(label3, BorderLayout.NORTH);
+//        systemsPanel.add(Box.createRigidArea(new Dimension(0,10)));
+        systemsPanel.add(connectedSystems,BorderLayout.CENTER);
+
+        JSplitPane statusSplitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, statusPanel, systemsPanel);
+        statusSplitPane.setEnabled(false);
+        statusSplitPane.setDividerSize(0);
+        return statusSplitPane;
+    }
+
+    public static void main(String[] args) {
+        JTabbedPane tabsPane = new JTabbedPane(SwingConstants.TOP);
+
+        JSplitPane statusPane = getStatusPanel();
+        statusPane.setDividerLocation(320);
+        tabsPane.add("Status", statusPane);
+
+        GuiUtils.testFrame(tabsPane, "DataSync", 800, 600);
+    }
+
+    @Periodic(millisBetweenUpdates = 5000)
+    private void updateConnectedSystems() {
+        String[] systemNames =
+                ImcMsgManager.getManager().getCommInfo().values().stream()
+                        .filter(SystemImcMsgCommInfo::isActive)
+                        .map(SystemImcMsgCommInfo::toString)
+                        .toArray(String[]::new);
+        if (connectedSystems != null) {
+            connectedSystems.setListData(systemNames);
+        }
+    }
+
     @Override
     public void cleanSubPanel() {
         System.out.println("cleaning subpanel");
@@ -80,51 +157,15 @@ public class DataSynchronization extends ConsolePanel {
     public void initSubPanel() {
         removeAll();
         setLayout(new BorderLayout(5, 5));
-        JTabbedPane tabsPane = new JTabbedPane(SwingConstants.RIGHT);
-        JButton refreshBtn = new JButton("Refresh");
-        refreshBtn.setSize(100, 30);
-        refreshBtn.setText("Refresh");
-        refreshBtn.setAction(refreshAction);
-        add(outputField, BorderLayout.CENTER);
-        add(refreshBtn, BorderLayout.NORTH);
-    }
 
-    public static JSplitPane getStatusPanel() {
-
-        JPanel statusPanel = new JPanel();
-        statusPanel.setLayout(new BoxLayout(statusPanel,BoxLayout.PAGE_AXIS));
-        statusPanel.setBorder(new EmptyBorder(10,10,10,10));
-
-        JLabel label1 = new JLabel("IDLE");
-        label1.setOpaque(true);
-        label1.setMaximumSize(new Dimension(Short.MAX_VALUE, label1.getMaximumSize().height * 5));
-        label1.setHorizontalAlignment(SwingConstants.CENTER);
-        label1.setBorder(BorderFactory.createLineBorder(Color.RED,3, true));
-        label1.setBackground(Color.green);
-
-
-        statusPanel.add(label1);
-//        statusPanel.add(button2);
-//        statusPanel.add(Box.createVerticalGlue());
-//        statusPanel.add(button3);
-
-
-        JButton button4 = new JButton("RESET");
-        JSplitPane statusSplitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT,statusPanel,button4);
-        statusSplitPane.setEnabled(false);
-        statusSplitPane.setDividerLocation(0.40);
-        return statusSplitPane;
-    }
-
-    public static void main(String[] args) {
         JTabbedPane tabsPane = new JTabbedPane(SwingConstants.TOP);
 
         JSplitPane statusPane = getStatusPanel();
+        statusPane.setDividerLocation(320);
         tabsPane.add("Status", statusPane);
 
-        GuiUtils.testFrame(tabsPane,"DataSync", 800, 600);
+        add(tabsPane, BorderLayout.CENTER);
 
-        statusPane.setDividerLocation(0.40);
-        statusPane.setDividerSize(0);
+
     }
 }

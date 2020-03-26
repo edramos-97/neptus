@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <console name="Neptus Console" width="1366" height="727" resizable="true" mission-file="../../missions/APDL/missao-apdl.nmisz" main-vehicle="lauv-xplore-1">
-  <!-- Data saved on 2020-02-18T17:16:45.0Z with Neptus version @VERSION@ (compiled on @DATE@, g@SCM_REV@). -->
+  <!-- Data saved on 2020-03-26T12:15:40.0Z with Neptus version @VERSION@ (compiled on @DATE@, g@SCM_REV@). -->
   <mainpanel name="console main panel">
     <subpanel class="pt.lsts.neptus.console.plugins.containers.MigLayoutContainer" x="0" y="0" width="1350" height="632">
       <properties>
@@ -178,7 +178,10 @@
       <child class="pt.lsts.neptus.plugins.acoustic.MantaOperations" x="0" y="0" width="0" height="0">
         <properties/>
       </child>
-      <child class="pt.lsts.neptus.plugins.dataSync.DataSynchronization" x="0" y="0" width="489" height="401">
+      <child class="pt.lsts.neptus.plugins.dataSync.DataSynchronization" x="0" y="0" width="786" height="536">
+        <properties/>
+      </child>
+      <child class="pt.lsts.neptus.plugins.dev.ImcCommsMonitorPanel" x="0" y="0" width="600" height="592">
         <properties/>
       </child>
     </subpanel>
