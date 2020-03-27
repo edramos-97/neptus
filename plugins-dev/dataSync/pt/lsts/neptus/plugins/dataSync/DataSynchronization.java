@@ -35,13 +35,11 @@ package pt.lsts.neptus.plugins.dataSync;
 import com.google.common.eventbus.Subscribe;
 import pt.lsts.imc.Event;
 import pt.lsts.neptus.comm.manager.imc.ImcMsgManager;
-import pt.lsts.neptus.comm.manager.imc.SystemImcMsgCommInfo;
 import pt.lsts.neptus.console.ConsoleLayout;
 import pt.lsts.neptus.console.ConsolePanel;
 import pt.lsts.neptus.plugins.PluginDescription;
 import pt.lsts.neptus.plugins.Popup;
 import pt.lsts.neptus.plugins.Popup.POSITION;
-import pt.lsts.neptus.plugins.update.Periodic;
 import pt.lsts.neptus.util.GuiUtils;
 
 import javax.swing.*;
@@ -140,13 +138,7 @@ public class DataSynchronization extends ConsolePanel {
         GuiUtils.testFrame(tabsPane, "DataSync", 800, 600);
     }
 
-    @Periodic(millisBetweenUpdates = 5000)
-    private void updateConnectedSystems() {
-        String[] systemNames =
-                ImcMsgManager.getManager().getCommInfo().values().stream()
-                        .filter(SystemImcMsgCommInfo::isActive)
-                        .map(SystemImcMsgCommInfo::toString)
-                        .toArray(String[]::new);
+    void updateConnectedSystems(String[] systemNames) {
         if (connectedSystems != null) {
             connectedSystems.setListData(systemNames);
         }
