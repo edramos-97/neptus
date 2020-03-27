@@ -1,12 +1,10 @@
 package pt.lsts.neptus.plugins.dataSync;
 
-import com.google.common.eventbus.Subscribe;
 import pt.lsts.imc.Event;
 import pt.lsts.neptus.NeptusLog;
 import pt.lsts.neptus.comm.manager.SystemCommBaseInfo;
 import pt.lsts.neptus.comm.manager.imc.ImcId16;
 import pt.lsts.neptus.comm.manager.imc.ImcMsgManager;
-import pt.lsts.neptus.comm.manager.imc.ImcSystemsHolder;
 import pt.lsts.neptus.comm.manager.imc.SystemImcMsgCommInfo;
 
 import java.util.concurrent.Executors;
@@ -52,7 +50,7 @@ public class ElectionManager {
     void initialize() {
         resetState();
         leaderSearch = new LeaderSearch();
-        privateExecutor.schedule(leaderSearch, 10000, TimeUnit.MILLISECONDS);
+        privateExecutor.schedule(leaderSearch, 2000, TimeUnit.MILLISECONDS);
     }
 
     /**
@@ -90,10 +88,10 @@ public class ElectionManager {
         setState(ElectionState.RESET);
     }
 
-    @Subscribe
     public void on(Event eventMsg) {
+        System.out.println("ElectionMan: " + eventMsg.getTopic());
         String topic = eventMsg.getTopic();
-        String data = "-1";
+        String data = (String)eventMsg.getValue("data");
         ImcId16 sender = new ImcId16(eventMsg.getSrc());
 //        String data = eventMsg.getData()
         switch (topic) {
@@ -112,21 +110,24 @@ public class ElectionManager {
                         .filter(SystemImcMsgCommInfo::isActive)
                         .map(SystemCommBaseInfo::getSystemCommId)
                         .toArray(ImcId16[]::new);
-
-                if (data.equals("-1") && state == ElectionState.IDLE) {
-                    ImcMsgManager.getManager().sendReliablyNonBlocking(
-                            new Event("accept",data),
-                            sender,
-                            null);
-                } else {
-                    ImcId16 candidateId = new ImcId16(ImcId16.parseImcId16(data));
+                try {
+                    if (data.equals("-1") && state == ElectionState.IDLE) {
+                        ImcMsgManager.getManager().sendMessage(
+                                new Event("accept",data),
+                                sender,
+                                "TCP");
+                    } else {
+                        ImcId16 candidateId = new ImcId16(ImcId16.parseImcId16(data));
+                    }
+                } catch (Exception e){
+                    System.out.println(e);
                 }
                 break;
             case "accept":
-//                long noActiveSystems = ImcMsgManager.getManager().getCommInfo().values().stream()
-//                        .filter(SystemImcMsgCommInfo::isActive)
-//                        .count();
-                long noActiveSystems = ImcSystemsHolder.lookupAllActiveSystems().length;
+                long noActiveSystems = ImcMsgManager.getManager().getCommInfo().values().stream()
+                        .filter(SystemImcMsgCommInfo::isActive)
+                        .count();
+//                long noActiveSystems = ImcSystemsHolder.lookupAllActiveSystems().length;
                 if(++acceptCounter == noActiveSystems){
                     isLeader = true;
                     hasLeader = true;
@@ -194,26 +195,21 @@ public class ElectionManager {
                 }
 
 //            check if there are other node in the network
-//                long noActiveSystems = ImcMsgManager.getManager().getCommInfo().values().stream()
-//                        .filter(SystemImcMsgCommInfo::isActive)
-//                        .count();
-                long noActiveSystems = ImcSystemsHolder.lookupAllActiveSystems().length;
-                if (noActiveSystems > 0) {
-//            start candidate thread and detach
-                    privateExecutor.submit(new CandidateBroadcasting("-1"));
-                } else {
-//                    if not then sleep
-                    setState(ElectionState.IDLE);
-                    return;
-                }
+                int noActiveSystems = (int)ImcMsgManager.getManager().getCommInfo().values().stream()
+                        .filter(SystemImcMsgCommInfo::isActive)
+                        .count();
+//                long noActiveSystems = ImcSystemsHolder.lookupAllActiveSystems().length;
 
-                Thread.sleep(2000);
-
-                if (hasLeader || isLeader) {
-                    setState(ElectionState.ELECTED);
-                } else {
-                    privateExecutor.submit(new LeaderSearch());
-                    return;
+                switch (noActiveSystems) {
+                    case 0:
+                        setState(ElectionState.IDLE);
+                        break;
+                    case 1:
+                        candidateBroadcasting = new CandidateBroadcasting("-1");
+                        privateExecutor.schedule(candidateBroadcasting, 1000, TimeUnit.MILLISECONDS);
+                        break;
+                    default:
+                        privateExecutor.schedule(new LeaderSearch(), 1000, TimeUnit.MILLISECONDS);
                 }
             } catch (InterruptedException e) {
                 NeptusLog.pub().debug("Leader Search thread was interrupted in Election Manager");
@@ -238,14 +234,12 @@ public class ElectionManager {
             try {
 //            wait 5sec
                 Thread.sleep(10000);
-            } catch (InterruptedException e) {
                 if (!hasLeader && !isLeader) {
-                    if(candidateId.equals("-1")){
-                        privateExecutor.submit(new LeaderSearch());
-                    } else {
-                        NeptusLog.pub().debug("Candidate broadcasting thread was interrupted in Election Manager");
-                    }
+                    privateExecutor.submit(new LeaderSearch());
                 }
+            } catch (InterruptedException e) {
+                if (!hasLeader && !isLeader)
+                    NeptusLog.pub().debug("Candidate broadcasting thread was interrupted in Election Manager");
             }
         }
     }

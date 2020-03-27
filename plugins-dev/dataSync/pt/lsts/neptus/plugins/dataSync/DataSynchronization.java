@@ -32,6 +32,8 @@
 
 package pt.lsts.neptus.plugins.dataSync;
 
+import com.google.common.eventbus.Subscribe;
+import pt.lsts.imc.Event;
 import pt.lsts.neptus.comm.manager.imc.ImcMsgManager;
 import pt.lsts.neptus.comm.manager.imc.SystemImcMsgCommInfo;
 import pt.lsts.neptus.console.ConsoleLayout;
@@ -46,7 +48,6 @@ import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.LineBorder;
 import java.awt.*;
-import java.awt.event.ActionEvent;
 
 
 /**
@@ -59,17 +60,23 @@ public class DataSynchronization extends ConsolePanel {
 
     // Interface Components
     static JList<String> connectedSystems = null;
-    JTextArea outputField = new JTextArea();
 
-
-    private Action refreshAction = new AbstractAction() {
-        @Override
-        public void actionPerformed(ActionEvent e) {
-            outputField.setText("");
-            outputField.append(getConsole().getImcMsgManager().getCommInfo().toString() + '\n');
-            outputField.append(getConsole().getImcMsgManager().getCommStatusAsHtmlFragment() + '\n');
+    @Subscribe
+    public void on(Event evtMsg){
+//        ElectionManager.getManager().on(evtMsg);
+        if(evtMsg.getSrc() != ImcMsgManager.getManager().getLocalId().intValue()){
+            ElectionManager.getManager().on(evtMsg);
         }
-    };
+    }
+
+//    private Action refreshAction = new AbstractAction() {
+//        @Override
+//        public void actionPerformed(ActionEvent e) {
+//            outputField.setText("");
+//            outputField.append(getConsole().getImcMsgManager().getCommInfo().toString() + '\n');
+//            outputField.append(getConsole().getImcMsgManager().getCommStatusAsHtmlFragment() + '\n');
+//        }
+//    };
 
     public DataSynchronization(ConsoleLayout console) {
         super(console);
