@@ -166,6 +166,6 @@ public class DataSynchronization extends ConsolePanel {
 
         add(tabsPane, BorderLayout.CENTER);
 
-
+        ElectionManager.getManager().initialize();
     }
 }
