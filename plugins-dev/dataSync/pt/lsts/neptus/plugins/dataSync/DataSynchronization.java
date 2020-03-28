@@ -40,6 +40,7 @@ import pt.lsts.neptus.console.ConsolePanel;
 import pt.lsts.neptus.plugins.PluginDescription;
 import pt.lsts.neptus.plugins.Popup;
 import pt.lsts.neptus.plugins.Popup.POSITION;
+import pt.lsts.neptus.plugins.update.Periodic;
 import pt.lsts.neptus.util.GuiUtils;
 
 import javax.swing.*;
@@ -61,11 +62,20 @@ public class DataSynchronization extends ConsolePanel {
 
     @Subscribe
     public void on(Event evtMsg){
-//        ElectionManager.getManager().on(evtMsg);
         if(evtMsg.getSrc() != ImcMsgManager.getManager().getLocalId().intValue()){
             ElectionManager.getManager().on(evtMsg);
         }
     }
+
+    @Periodic(millisBetweenUpdates = 5000)
+    public void updateConnectedSystems() {
+        ElectionManager.getManager().updateConnectedSystems();
+    }
+
+//    @Periodic(millisBetweenUpdates = 1000)
+//    public void hello() {
+//
+//    }
 
 //    private Action refreshAction = new AbstractAction() {
 //        @Override
