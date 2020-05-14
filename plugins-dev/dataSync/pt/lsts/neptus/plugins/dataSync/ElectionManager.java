@@ -44,14 +44,15 @@ public class ElectionManager {
      * @return The singleton manager.
      */
     public static ElectionManager getManager() {
-        return createManager();
+        if (electionManager == null) {
+            return createManager();
+        } else {
+            return electionManager;
+        }
     }
 
     private static synchronized ElectionManager createManager() {
-        if (electionManager == null) {
-            electionManager = new ElectionManager();
-        }
-        return electionManager;
+        return new ElectionManager();
     }
 
     /**
@@ -133,12 +134,9 @@ public class ElectionManager {
                                 sender,
                                 null);
                         setState(ElectionState.ACCEPTING);
-                        privateExecutor.schedule(new Runnable() {
-                            @Override
-                            public void run() {
-                                if (!hasLeader) {
-                                    setState(ElectionState.IDLE);
-                                }
+                        privateExecutor.schedule(() -> {
+                            if (!hasLeader) {
+                                setState(ElectionState.IDLE);
                             }
                         }, 9000, TimeUnit.MILLISECONDS);
                     }
@@ -210,7 +208,7 @@ public class ElectionManager {
     private void notifyActiveSystemListeners (String[] activeSystemNames) {
         for (Pair<Object,Method> pair : systemListeners) {
             try {
-                pair.second().invoke(pair.first(), (Object[]) activeSystemNames);
+                pair.second().invoke(pair.first(), activeSystemNames);
             } catch (IllegalAccessException e) {
                 e.printStackTrace();
             } catch (InvocationTargetException e) {

@@ -35,12 +35,17 @@ package pt.lsts.neptus.plugins.dataSync;
 import com.google.common.eventbus.Subscribe;
 import pt.lsts.imc.Event;
 import pt.lsts.neptus.comm.manager.imc.ImcMsgManager;
+import pt.lsts.neptus.comm.manager.imc.ImcSystem;
+import pt.lsts.neptus.comm.manager.imc.ImcSystemsHolder;
 import pt.lsts.neptus.console.ConsoleLayout;
 import pt.lsts.neptus.console.ConsolePanel;
+import pt.lsts.neptus.console.plugins.planning.plandb.IPlanDBListener;
+import pt.lsts.neptus.console.plugins.planning.plandb.PlanDBState;
 import pt.lsts.neptus.plugins.PluginDescription;
 import pt.lsts.neptus.plugins.Popup;
 import pt.lsts.neptus.plugins.Popup.POSITION;
 import pt.lsts.neptus.plugins.update.Periodic;
+import pt.lsts.neptus.types.mission.plan.PlanType;
 import pt.lsts.neptus.util.GuiUtils;
 
 import javax.swing.*;
@@ -62,6 +67,8 @@ public class DataSynchronization extends ConsolePanel {
 
     @Subscribe
     public void on(Event evtMsg){
+        System.out.println("Local mgs: " + evtMsg.getTopic());
+        ConsistencyManager.getManager().on(evtMsg);
         if(evtMsg.getSrc() != ImcMsgManager.getManager().getLocalId().intValue()){
             ElectionManager.getManager().on(evtMsg);
         }
@@ -154,12 +161,17 @@ public class DataSynchronization extends ConsolePanel {
         }
     }
 
+    private void addDataUpdateListeners() {
+        ImcSystem localImcSystem = ImcSystemsHolder.lookupSystem(ImcMsgManager.getManager().getLocalId());
+        if(localImcSystem != null) {
+            localImcSystem.getPlanDBControl().addListener(planChangeListener);
+            System.out.println("Added Plan Listener");
+        }
+    }
+
     @Override
     public void cleanSubPanel() {
         System.out.println("cleaning subpanel");
-//        ImcMsgManager imcMsgManager = getConsole().getImcMsgManager();
-//        System.out.println(imcMsgManager.getAllServicesString());
-//        System.out.println(imcMsgManager.getCommInfo());
     }
 
     @Override
@@ -175,6 +187,36 @@ public class DataSynchronization extends ConsolePanel {
 
         add(tabsPane, BorderLayout.CENTER);
 
-        ElectionManager.getManager().initialize();
+        addDataUpdateListeners();
+
+//        ElectionManager.getManager().initialize();
+        ConsistencyManager.getManager();
     }
+
+    IPlanDBListener planChangeListener = new IPlanDBListener() {
+        @Override
+        public void dbInfoUpdated(PlanDBState updatedInfo) {
+            System.out.println("Info Updated");
+        }
+
+        @Override
+        public void dbPlanReceived(PlanType spec) {
+            System.out.println("Plan Received");
+        }
+
+        @Override
+        public void dbPlanSent(String planId) {
+            System.out.println("Plan Sent");
+        }
+
+        @Override
+        public void dbPlanRemoved(String planId) {
+            System.out.println("Plan Removed");
+        }
+
+        @Override
+        public void dbCleared() {
+            System.out.println("DB Cleared");
+        }
+    };
 }
