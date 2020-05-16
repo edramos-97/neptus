@@ -74,7 +74,7 @@ public class PlanCRDT extends CRDT {
     }
 
     @Override
-    public CRDT updateFromNetwork(Object dataObject) {
+    public CRDT updateFromNetwork(LinkedHashMap<String,?> dataObject) {
         return new PlanCRDT("hello");
     }
 

@@ -153,6 +153,8 @@ public class ConsistencyManager {
 
     private void notifyCRDTChanges(UUID id) {
         System.out.println("\nNotified changes on id:" + id + "\n");
+        System.out.print("Updated Object:");
+        System.out.println(idToCRDT.get(id).payload());
         // TODO: update local data for user information
     }
 
@@ -176,14 +178,14 @@ public class ConsistencyManager {
 
     public void on(Event evt) {
         String topic = evt.getTopic();
-        LinkedHashMap<String,?> data = ((LinkedHashMap<String,?>) evt.getValue("data"));
+        LinkedHashMap<String,?> data = evt.getData();
 
         switch(topic) {
             case "crdt_data":
                 updateFromNetwork(data, new ImcId16(evt.getSrcEnt()));
                 break;
             default:
-                System.out.println("Unknown topic received in consistency manager: " + topic);
+                NeptusLog.pub().trace("Unknown topic received in consistency manager: " + topic);
         }
     }
 

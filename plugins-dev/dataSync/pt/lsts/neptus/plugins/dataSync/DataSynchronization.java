@@ -68,8 +68,8 @@ public class DataSynchronization extends ConsolePanel {
     @Subscribe
     public void on(Event evtMsg){
         System.out.println("Local mgs: " + evtMsg.getTopic());
-        ConsistencyManager.getManager().on(evtMsg);
         if(evtMsg.getSrc() != ImcMsgManager.getManager().getLocalId().intValue()){
+            ConsistencyManager.getManager().on(evtMsg);
             ElectionManager.getManager().on(evtMsg);
         }
     }
