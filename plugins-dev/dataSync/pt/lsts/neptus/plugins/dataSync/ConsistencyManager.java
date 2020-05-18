@@ -10,6 +10,7 @@ import pt.lsts.neptus.plugins.dataSync.CRDTs.CRDT;
 import pt.lsts.neptus.plugins.dataSync.CRDTs.GSet;
 import pt.lsts.neptus.plugins.dataSync.CRDTs.LastEventSet;
 import pt.lsts.neptus.plugins.dataSync.CRDTs.PlanCRDT;
+import pt.lsts.neptus.types.mission.plan.PlanType;
 import pt.lsts.neptus.util.conf.GeneralPreferences;
 
 import java.net.InetAddress;
@@ -31,7 +32,7 @@ public class ConsistencyManager {
 
     public ConsistencyManager() {
         super();
-        testThread.start();
+//        testThread.start();
     }
 
     /**
@@ -80,7 +81,7 @@ public class ConsistencyManager {
         CRDT newCRDT;
         switch (crdtType) {
             case PLAN:
-                newCRDT = new PlanCRDT(dataObject);
+                newCRDT = new PlanCRDT((PlanType) dataObject);
                 break;
             default:
                 return null;
@@ -136,7 +137,7 @@ public class ConsistencyManager {
 
         if(!idToCRDT.containsKey(id)){
             CRDT newCRDT = createCRDT(type);
-            newCRDT.updateFromNetwork(crdtData);
+            newCRDT = newCRDT.updateFromNetwork(crdtData);
             idToCRDT.put(id, newCRDT);
             nameToID.put(remoteName + "-" + senderID, id);
         } else {
@@ -145,6 +146,21 @@ public class ConsistencyManager {
             idToCRDT.put(id,updatedCRDT);
         }
         notifyCRDTChanges(id);
+    }
+
+    public void deleteCRDT(LinkedHashMap<String,?> crdtData, ImcId16 sender) {
+        UUID id = UUID.fromString((String)crdtData.get("id"));
+
+        idToCRDT.remove(id);
+
+        Iterator<Map.Entry<String,UUID>> iterator = nameToID.entrySet().iterator();
+
+        while (iterator.hasNext()) {
+            Map.Entry<String,UUID> entry = iterator.next();
+            if (id.equals(entry.getValue())) {
+                iterator.remove();
+            }
+        }
     }
 
     public CRDT getCRDT(UUID id) {
@@ -184,6 +200,8 @@ public class ConsistencyManager {
             case "crdt_data":
                 updateFromNetwork(data, new ImcId16(evt.getSrcEnt()));
                 break;
+            case "crdt_removed":
+                deleteCRDT(data, new ImcId16(evt.getSrcEnt()));
             default:
                 NeptusLog.pub().trace("Unknown topic received in consistency manager: " + topic);
         }
@@ -213,26 +231,25 @@ public class ConsistencyManager {
     }
 
     public static void main(String[] args) {
-        HashSet<String> testArg = new HashSet<>();
-        testArg.add("Hello");
-        testArg.add("Goodbye");
 
-        ConsistencyManager.getManager().createCRDT("Hello",testArg,
-                CRDT.CRDTType.GSET);
+        HashMap<String,Long> map = new HashMap();
 
-        /*try {
-            testArg.add("This");
-            ConsistencyManager.getManager().updateCRDT("Hello", testArg);
-            Thread.sleep(1000);
-            testArg.add("is");
-            ConsistencyManager.getManager().updateCRDT("Hello", testArg);
-            Thread.sleep(1000);
-            testArg.add("working");
-            ConsistencyManager.getManager().updateCRDT("Hello", testArg);
-            Thread.sleep(10000);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }*/
+        HashSet<String> lastPlanList = new HashSet<>();
+        lastPlanList.add("Common");
+        lastPlanList.add("Removed");
+
+        HashSet<String> currPlanList = new HashSet<>();
+        currPlanList.add("Common");
+        currPlanList.add("New");
+
+        Set<String> removedPlans = Operations.diff(lastPlanList,
+                currPlanList);
+        Set<String> newPlans = Operations.diff(currPlanList,
+                lastPlanList);
+        Set<String> possibleUpdates = Operations.diff(currPlanList,newPlans);
+        System.out.println(newPlans);
+        System.out.println(removedPlans);
+        System.out.println(possibleUpdates);
     }
 
     Thread testThread = new Thread() {

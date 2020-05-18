@@ -13,7 +13,7 @@ public class GSet<E> extends CRDT {
     }
 
     public GSet(Set<E> set) {
-        this.set = new HashSet<>(set);
+        this.set = (Set<E>) new HashSet<>(set).clone();
     }
 
     public void add(final E elem) {

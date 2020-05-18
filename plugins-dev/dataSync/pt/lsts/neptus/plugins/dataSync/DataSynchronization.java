@@ -35,16 +35,15 @@ package pt.lsts.neptus.plugins.dataSync;
 import com.google.common.eventbus.Subscribe;
 import pt.lsts.imc.Event;
 import pt.lsts.neptus.comm.manager.imc.ImcMsgManager;
-import pt.lsts.neptus.comm.manager.imc.ImcSystem;
-import pt.lsts.neptus.comm.manager.imc.ImcSystemsHolder;
 import pt.lsts.neptus.console.ConsoleLayout;
 import pt.lsts.neptus.console.ConsolePanel;
-import pt.lsts.neptus.console.plugins.planning.plandb.IPlanDBListener;
-import pt.lsts.neptus.console.plugins.planning.plandb.PlanDBState;
+import pt.lsts.neptus.console.plugins.MissionChangeListener;
 import pt.lsts.neptus.plugins.PluginDescription;
 import pt.lsts.neptus.plugins.Popup;
 import pt.lsts.neptus.plugins.Popup.POSITION;
+import pt.lsts.neptus.plugins.dataSync.CRDTs.CRDT;
 import pt.lsts.neptus.plugins.update.Periodic;
+import pt.lsts.neptus.types.mission.MissionType;
 import pt.lsts.neptus.types.mission.plan.PlanType;
 import pt.lsts.neptus.util.GuiUtils;
 
@@ -52,6 +51,9 @@ import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.LineBorder;
 import java.awt.*;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
 
 
 /**
@@ -79,19 +81,6 @@ public class DataSynchronization extends ConsolePanel {
         ElectionManager.getManager().updateConnectedSystems();
     }
 
-//    @Periodic(millisBetweenUpdates = 1000)
-//    public void hello() {
-//
-//    }
-
-//    private Action refreshAction = new AbstractAction() {
-//        @Override
-//        public void actionPerformed(ActionEvent e) {
-//            outputField.setText("");
-//            outputField.append(getConsole().getImcMsgManager().getCommInfo().toString() + '\n');
-//            outputField.append(getConsole().getImcMsgManager().getCommStatusAsHtmlFragment() + '\n');
-//        }
-//    };
 
     public DataSynchronization(ConsoleLayout console) {
         super(console);
@@ -162,11 +151,7 @@ public class DataSynchronization extends ConsolePanel {
     }
 
     private void addDataUpdateListeners() {
-        ImcSystem localImcSystem = ImcSystemsHolder.lookupSystem(ImcMsgManager.getManager().getLocalId());
-        if(localImcSystem != null) {
-            localImcSystem.getPlanDBControl().addListener(planChangeListener);
-            System.out.println("Added Plan Listener");
-        }
+        this.getConsole().addMissionListener(missionChangeListener);
     }
 
     @Override
@@ -193,30 +178,46 @@ public class DataSynchronization extends ConsolePanel {
         ConsistencyManager.getManager();
     }
 
-    IPlanDBListener planChangeListener = new IPlanDBListener() {
+//    ::::::::::::::::::::::::::::::::::::::::: Listeners
+
+    MissionChangeListener missionChangeListener = new MissionChangeListener() {
+        private TreeMap<String, PlanType> lastPlanList = null;
+
         @Override
-        public void dbInfoUpdated(PlanDBState updatedInfo) {
-            System.out.println("Info Updated");
+        public void missionReplaced(MissionType mission) {
+
         }
 
         @Override
-        public void dbPlanReceived(PlanType spec) {
-            System.out.println("Plan Received");
-        }
-
-        @Override
-        public void dbPlanSent(String planId) {
-            System.out.println("Plan Sent");
-        }
-
-        @Override
-        public void dbPlanRemoved(String planId) {
-            System.out.println("Plan Removed");
-        }
-
-        @Override
-        public void dbCleared() {
-            System.out.println("DB Cleared");
+        public void missionUpdated(MissionType mission) {
+            ConsistencyManager manager = ConsistencyManager.getManager();
+            TreeMap<String,PlanType> currPlanList = mission.getIndividualPlansList();
+//            :::::::: Handle plan changes
+            if (lastPlanList == null) {
+                for (Map.Entry<String,PlanType> entry : currPlanList.entrySet()){
+                    manager.createCRDT(entry.getKey(),entry.getValue(), CRDT.CRDTType.PLAN);
+                }
+                lastPlanList = new TreeMap<>();
+            } else {
+                Set<Map.Entry<String,PlanType>> removedPlans = Operations.diff(lastPlanList.entrySet(),
+                        currPlanList.entrySet());
+                Set<Map.Entry<String,PlanType>> newPlans = Operations.diff(currPlanList.entrySet(),
+                        lastPlanList.entrySet());
+                System.out.println(newPlans);
+                System.out.println(removedPlans);
+                /*Set<Map.Entry<String,PlanType>> possibleUpdates = Operations.diff(newPlans,currPlanList.entrySet());
+                Set<Map.Entry<String,PlanType>> updates = new HashSet<>();
+                for (Map.Entry<String,PlanType> possibleUpdate:possibleUpdates) {
+                    PlanType oldPlan = lastPlanList.get(possibleUpdate.getKey());
+                    PlanType currPlan = currPlanList.get(possibleUpdate.getKey());
+                    if(!oldPlan.equals(currPlan)){
+                        updates.add(possibleUpdate);
+                    }
+                }*/
+            }
+            lastPlanList.clear();
+            lastPlanList.putAll(currPlanList);
+//            ::::::::
         }
     };
 }
