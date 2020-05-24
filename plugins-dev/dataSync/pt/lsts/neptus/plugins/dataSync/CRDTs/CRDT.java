@@ -7,7 +7,7 @@ public abstract class CRDT {
 
     public abstract LinkedHashMap<String,?> toLinkedHashMap(String localName, UUID id);
 
-    public abstract Object payload();
+    public abstract Object payload(Object ...param);
 
     public abstract CRDT updateFromLocal(Object dataObject);
 

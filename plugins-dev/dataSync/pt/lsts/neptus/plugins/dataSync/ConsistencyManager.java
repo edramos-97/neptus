@@ -202,6 +202,10 @@ public class ConsistencyManager {
                 break;
             case "crdt_removed":
                 deleteCRDT(data, new ImcId16(evt.getSrcEnt()));
+                break;
+            case "crdt_request":
+                // TODO: analyze requested id's and send local version
+                break;
             default:
                 NeptusLog.pub().trace("Unknown topic received in consistency manager: " + topic);
         }

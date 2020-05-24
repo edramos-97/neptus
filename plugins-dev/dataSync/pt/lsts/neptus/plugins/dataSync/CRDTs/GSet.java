@@ -46,7 +46,7 @@ public class GSet<E> extends CRDT {
     }
 
     @Override
-    public Set<E> payload() {
+    public Set<E> payload(Object ...params) {
         return Collections.unmodifiableSet(set);
     }
 

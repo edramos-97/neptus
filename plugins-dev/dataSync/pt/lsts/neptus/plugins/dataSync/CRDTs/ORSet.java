@@ -41,14 +41,10 @@ public class ORSet<E> extends CRDT {
         return !result.isEmpty();
     }
 
-    public Set<E> elements() {
-        return Operations.mappedd(set, Tuple::getElement);
-    }
-
     public void add (E element) {
-        set.add(new Tuple<>(element,clock.valueAndInc() + 1,myId));
+        boolean noContain = set.add(new Tuple<>(element,clock.valueAndInc() + 1,myId));
 
-        if(clock.value() > versionVector.get(myId)) {
+        if(noContain && clock.value() > versionVector.get(myId)) {
             set = Operations.filtered(set, new Operations.Predicate<Tuple<E, Long,
                     ImcId16>>() {
                 @Override
@@ -121,8 +117,8 @@ public class ORSet<E> extends CRDT {
     }
 
     @Override
-    public Object payload() {
-        return null;
+    public Set<E> payload(Object ...params) {
+        return Collections.unmodifiableSet(Operations.mappedd(set, Tuple::getElement));
     }
 
     @Override
