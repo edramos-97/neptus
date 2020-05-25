@@ -2,8 +2,12 @@ package pt.lsts.neptus.plugins.dataSync.CRDTs;
 
 import pt.lsts.neptus.comm.manager.imc.ImcId16;
 import pt.lsts.neptus.comm.manager.imc.ImcMsgManager;
+import pt.lsts.neptus.mp.Maneuver;
 import pt.lsts.neptus.plugins.dataSync.Operations;
+import pt.lsts.neptus.types.XmlOutputMethods;
+import pt.lsts.neptus.types.mission.TransitionType;
 
+import java.io.Serializable;
 import java.util.*;
 
 
@@ -11,7 +15,7 @@ import java.util.*;
 Implementation based on the work
 Bieniusa, Annette, et al. "An optimized conflict-free replicated set." arXiv preprint arXiv:1210.3368 (2012).
 */
-public class ORSet<E> extends CRDT {
+public class ORSet<E extends XmlOutputMethods> extends CRDT implements Serializable{
 
     static ImcId16 myId = ImcMsgManager.getManager().getLocalId();
 
@@ -106,9 +110,20 @@ public class ORSet<E> extends CRDT {
             }
         });
         set = Operations.diff(union, overflow);
+
+        // Keep max val from both set's version vectors
+        for (Map.Entry<ImcId16, Long> entry: anotherSet.versionVector.entrySet()) {
+            if(versionVector.containsKey(entry.getKey())){
+                if(versionVector.get(entry.getKey()) < entry.getValue()) {
+                    versionVector.put(entry.getKey(),entry.getValue());
+                }
+            } else {
+                versionVector.put(entry.getKey(), entry.getValue());
+            }
+        }
+
         return this;
     }
-
 
 
     @Override
@@ -116,9 +131,23 @@ public class ORSet<E> extends CRDT {
         return null;
     }
 
+    public LinkedHashMap<String, ?> toLinkedHashMap(String localName, UUID id, String genericType) {
+        LinkedHashMap<String, Object> map = new LinkedHashMap();
+        map.put("set", Operations.mapped(set, new Operations.Mapper<Tuple<E, Long, ImcId16>, Tuple<String, Long,
+                   ImcId16>>() {
+               @Override
+               public Tuple<String, Long, ImcId16> call(Tuple<E, Long, ImcId16> element) {
+                   return new Tuple<>(element.getElement().asXML(),element.getTime(), element.getReplicaId());
+               }
+           }));
+       map.put("versionVector", versionVector);
+       map.put("type", genericType);
+       return map;
+    }
+
     @Override
     public Set<E> payload(Object ...params) {
-        return Collections.unmodifiableSet(Operations.mappedd(set, Tuple::getElement));
+        return Collections.unmodifiableSet(Operations.mapped(set, Tuple::getElement));
     }
 
     @Override
@@ -128,10 +157,31 @@ public class ORSet<E> extends CRDT {
 
     @Override
     public CRDT updateFromNetwork(LinkedHashMap<String, ?> dataObject) {
+        String type = (String) dataObject.get("type");
+        set = Operations.mapped((Set<Tuple<String, Long, ImcId16>>) dataObject.get("set"), new Operations.Mapper<Tuple<String, Long, ImcId16>,
+                Tuple<E,
+                Long, ImcId16>>() {
+            @Override
+            public Tuple<E, Long, ImcId16> call(Tuple<String, Long, ImcId16> element) {
+                E newElement;
+                switch(type) {
+                    case "maneuver":
+                        newElement = (E) Maneuver.createFromXML(element.getElement());
+                        break;
+                    case "transitionType":
+                        newElement = (E) TransitionType.createFromXml(element.getElement());
+                        break;
+                    default:
+                        newElement = null;
+                }
+                return new Tuple<>(newElement, element.getTime(), element.getReplicaId());
+            }
+        });
+
         return null;
     }
 
-    static class Tuple<E,T,I> {
+    static class Tuple<E,T,I> implements Serializable {
         E element;
         T time;
         I replicaId;
@@ -155,7 +205,7 @@ public class ORSet<E> extends CRDT {
         }
     }
 
-    class VectorClock {
+    class VectorClock implements Serializable {
         long counter = 0;
 
         long value() {

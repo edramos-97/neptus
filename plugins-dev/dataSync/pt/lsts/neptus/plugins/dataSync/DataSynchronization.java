@@ -67,21 +67,6 @@ public class DataSynchronization extends ConsolePanel {
     // Interface Components
     static JList<String> connectedSystems = null;
 
-    @Subscribe
-    public void on(Event evtMsg){
-        System.out.println("Local mgs: " + evtMsg.getTopic());
-        if(evtMsg.getSrc() != ImcMsgManager.getManager().getLocalId().intValue()){
-            ConsistencyManager.getManager().on(evtMsg);
-            ElectionManager.getManager().on(evtMsg);
-        }
-    }
-
-    @Periodic(millisBetweenUpdates = 5000)
-    public void updateConnectedSystems() {
-        ElectionManager.getManager().updateConnectedSystems();
-    }
-
-
     public DataSynchronization(ConsoleLayout console) {
         super(console);
     }
@@ -116,17 +101,17 @@ public class DataSynchronization extends ConsolePanel {
         statusPanel.add(Box.createVerticalGlue());
 
         JPanel systemsPanel = new JPanel();
-        systemsPanel.setLayout(new BorderLayout(10,10));
+        systemsPanel.setLayout(new BorderLayout(10, 10));
         systemsPanel.setBorder(new EmptyBorder(10, 10, 10, 10));
 
         JLabel label3 = new JLabel("Connected Systems");
         connectedSystems = new JList<>();
-        connectedSystems.setBorder(new LineBorder(Color.BLACK,2,true));
+        connectedSystems.setBorder(new LineBorder(Color.BLACK, 2, true));
         connectedSystems.setBackground(Color.WHITE);
 
         systemsPanel.add(label3, BorderLayout.NORTH);
 //        systemsPanel.add(Box.createRigidArea(new Dimension(0,10)));
-        systemsPanel.add(connectedSystems,BorderLayout.CENTER);
+        systemsPanel.add(connectedSystems, BorderLayout.CENTER);
 
         JSplitPane statusSplitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, statusPanel, systemsPanel);
         statusSplitPane.setEnabled(false);
@@ -144,6 +129,20 @@ public class DataSynchronization extends ConsolePanel {
         GuiUtils.testFrame(tabsPane, "DataSync", 800, 600);
     }
 
+    @Subscribe
+    public void on(Event evtMsg) {
+        System.out.println("Local mgs: " + evtMsg.getTopic());
+        ConsistencyManager.getManager().on(evtMsg);
+        if (evtMsg.getSrc() != ImcMsgManager.getManager().getLocalId().intValue()) {
+            ElectionManager.getManager().on(evtMsg);
+        }
+    }
+
+    @Periodic(millisBetweenUpdates = 5000)
+    public void updateConnectedSystems() {
+        ElectionManager.getManager().updateConnectedSystems();
+    }
+
     void updateConnectedSystems(String[] systemNames) {
         if (connectedSystems != null) {
             connectedSystems.setListData(systemNames);
@@ -152,12 +151,82 @@ public class DataSynchronization extends ConsolePanel {
 
     private void addDataUpdateListeners() {
         this.getConsole().addMissionListener(missionChangeListener);
+        ConsistencyManager.getManager().addPlanListener(planChangeListener);
     }
 
     @Override
     public void cleanSubPanel() {
         System.out.println("cleaning subpanel");
     }
+
+//    ::::::::::::::::::::::::::::::::::::::::: Listeners
+
+    MissionChangeListener missionChangeListener = new MissionChangeListener() {
+        private TreeMap<String, PlanType> lastPlanList = null;
+
+        @Override
+        public void missionReplaced(MissionType mission) {
+
+        }
+
+        @Override
+        public void missionUpdated(MissionType mission) {
+            ConsistencyManager manager = ConsistencyManager.getManager();
+            TreeMap<String, PlanType> currPlanList = mission.getIndividualPlansList();
+//            :::::::: Handle plan changes
+            if (lastPlanList == null) {
+                for (Map.Entry<String, PlanType> entry : currPlanList.entrySet()) {
+                    manager.createCRDT(entry.getKey(), entry.getValue(), CRDT.CRDTType.PLAN);
+                }
+                lastPlanList = new TreeMap<>();
+            } else {
+                Set<String> removedPlanIDs = Operations.diff(lastPlanList.keySet(),
+                        currPlanList.keySet());
+                Set<String> newPlanIDs = Operations.diff(currPlanList.keySet(),
+                        lastPlanList.keySet());
+
+                Set<String> updatedPlanIDs = Operations.filteredAndMapped(currPlanList
+                                .entrySet(),
+                        element -> !lastPlanList.entrySet().contains(element) && !newPlanIDs.contains(element.getKey()),
+                        Map.Entry::getKey);
+
+                // delete CRDT from removed plans
+                for (String removedID : removedPlanIDs) {
+                    ConsistencyManager.getManager().deleteCRDT(removedID);
+                }
+
+                for (String planID : newPlanIDs) {
+                    PlanType newPlan = currPlanList.get(planID);
+                    ConsistencyManager.getManager().createCRDT(newPlan.getId(), newPlan, CRDT.CRDTType.PLAN);
+                }
+
+                for (String updatedID : updatedPlanIDs) {
+                    PlanType updatedPlan = currPlanList.get(updatedID);
+                    ConsistencyManager.getManager().updateCRDT(updatedPlan.getId(), updatedPlan);
+                }
+
+                /*Set<Map.Entry<String,PlanType>> possibleUpdates = Operations.diff(newPlans,currPlanList.entrySet());
+                Set<Map.Entry<String,PlanType>> updates = new HashSet<>();
+                for (Map.Entry<String,PlanType> possibleUpdate:possibleUpdates) {
+                    PlanType oldPlan = lastPlanList.get(possibleUpdate.getKey());
+                    PlanType currPlan = currPlanList.get(possibleUpdate.getKey());
+                    if(!oldPlan.equals(currPlan)){
+                        updates.add(possibleUpdate);
+                    }
+                }*/
+            }
+            lastPlanList.clear();
+            lastPlanList.putAll(currPlanList);
+//            ::::::::
+        }
+    };
+
+    ConsistencyManager.ChangeListener planChangeListener = new ConsistencyManager.ChangeListener() {
+        @Override
+        public void change(Object planType) {
+            getConsole().getMission().addPlan((PlanType) planType);
+        }
+    };
 
     @Override
     public void initSubPanel() {
@@ -176,48 +245,6 @@ public class DataSynchronization extends ConsolePanel {
 
 //        ElectionManager.getManager().initialize();
         ConsistencyManager.getManager();
+        missionChangeListener.missionUpdated(getConsole().getMission());
     }
-
-//    ::::::::::::::::::::::::::::::::::::::::: Listeners
-
-    MissionChangeListener missionChangeListener = new MissionChangeListener() {
-        private TreeMap<String, PlanType> lastPlanList = null;
-
-        @Override
-        public void missionReplaced(MissionType mission) {
-
-        }
-
-        @Override
-        public void missionUpdated(MissionType mission) {
-            ConsistencyManager manager = ConsistencyManager.getManager();
-            TreeMap<String,PlanType> currPlanList = mission.getIndividualPlansList();
-//            :::::::: Handle plan changes
-            if (lastPlanList == null) {
-                for (Map.Entry<String,PlanType> entry : currPlanList.entrySet()){
-                    manager.createCRDT(entry.getKey(),entry.getValue(), CRDT.CRDTType.PLAN);
-                }
-                lastPlanList = new TreeMap<>();
-            } else {
-                Set<Map.Entry<String,PlanType>> removedPlans = Operations.diff(lastPlanList.entrySet(),
-                        currPlanList.entrySet());
-                Set<Map.Entry<String,PlanType>> newPlans = Operations.diff(currPlanList.entrySet(),
-                        lastPlanList.entrySet());
-                System.out.println(newPlans);
-                System.out.println(removedPlans);
-                /*Set<Map.Entry<String,PlanType>> possibleUpdates = Operations.diff(newPlans,currPlanList.entrySet());
-                Set<Map.Entry<String,PlanType>> updates = new HashSet<>();
-                for (Map.Entry<String,PlanType> possibleUpdate:possibleUpdates) {
-                    PlanType oldPlan = lastPlanList.get(possibleUpdate.getKey());
-                    PlanType currPlan = currPlanList.get(possibleUpdate.getKey());
-                    if(!oldPlan.equals(currPlan)){
-                        updates.add(possibleUpdate);
-                    }
-                }*/
-            }
-            lastPlanList.clear();
-            lastPlanList.putAll(currPlanList);
-//            ::::::::
-        }
-    };
 }

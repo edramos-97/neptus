@@ -6,6 +6,9 @@ import java.util.UUID;
 public abstract class CRDT {
 
     public abstract LinkedHashMap<String,?> toLinkedHashMap(String localName, UUID id);
+    public LinkedHashMap<String,?> toLinkedHashMap(String localName, UUID id, String genericType){
+        return null;
+    }
 
     public abstract Object payload(Object ...param);
 

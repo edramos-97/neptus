@@ -27,7 +27,7 @@
  *
  * For more information please see <http://lsts.fe.up.pt/neptus>.
  *
- * Author: 
+ * Author:
  * Mar 23, 2005
  */
 package pt.lsts.neptus.types.mission;
@@ -35,25 +35,27 @@ package pt.lsts.neptus.types.mission;
 import org.dom4j.Document;
 import org.dom4j.DocumentHelper;
 import org.dom4j.Element;
-
+import pt.lsts.neptus.NeptusLog;
 import pt.lsts.neptus.types.XmlOutputMethods;
 import pt.lsts.neptus.util.NameNormalizer;
 
 /**
  * This class holds information about a transition (in a plan graph)
+ *
  * @author ZP
  */
 public class TransitionType implements XmlOutputMethods {
-    
+
+    private static final String DEFAULT_ROOT_ELEMENT = "edge";
     String id;
     String sourceManeuver;
     String targetManeuver;
     ConditionType condition;
     ActionType action;
-	private static final String DEFAULT_ROOT_ELEMENT = "edge";
-    
+
     /**
      * Creates a new transition between two maneuvers
+     *
      * @param source The origin (maneuver) of this transition
      * @param target The destiny (maneuver) of this transition
      */
@@ -61,68 +63,97 @@ public class TransitionType implements XmlOutputMethods {
         setId(NameNormalizer.getRandomID());
         setSourceManeuver(source);
         setTargetManeuver(target);
-        
+
         setCondition(new ConditionType());
+    }
+
+    public static TransitionType createFromXml(String xml) {
+        TransitionType newTransition = null;
+        try {
+            Document doc = DocumentHelper.parseText(xml);
+
+            Element edge = doc.getRootElement();
+
+            String source = edge.element("source").getStringValue();
+            String target = edge.element("target").getStringValue();
+
+            newTransition = new TransitionType(source, target);
+
+            newTransition.setId(edge.element("id").getStringValue());
+            ConditionType conditionType = new ConditionType();
+            conditionType.setCondition(edge.element("guard").getStringValue());
+            newTransition.setCondition(conditionType);
+            if (edge.element("actions") != null) {
+                ActionType actionType = new ActionType();
+                actionType.setAction(edge.element("actions").getStringValue());
+                newTransition.setAction(actionType);
+            }
+
+        } catch (Exception e) {
+            NeptusLog.pub().error(System.err, e);
+        }
+        return newTransition;
     }
 
     /**
      * Returns this transition's condition
+     *
      * @return
      */
     public ConditionType getCondition() {
         return condition;
     }
-    
+
     /**
      * Sets the transition condition (A.K.A. guard)
+     *
      * @param condition
      */
     public void setCondition(ConditionType condition) {
         this.condition = condition;
     }
-    
+
     /**
      * @return the action
      */
     public ActionType getAction() {
         return action;
     }
-    
+
     /**
      * @param action the action to set
      */
     public void setAction(ActionType action) {
         this.action = action;
     }
-    
+
     public String getId() {
         return id;
     }
-    
+
     public void setId(String id) {
         this.id = id;
     }
-    
+
     public String getSourceManeuver() {
         return sourceManeuver;
     }
-    
+
     public void setSourceManeuver(String sourceManeuver) {
         this.sourceManeuver = sourceManeuver;
     }
-    
+
     public String getTargetManeuver() {
         return targetManeuver;
     }
-    
+
     public void setTargetManeuver(String targetManeuver) {
         this.targetManeuver = targetManeuver;
     }
-    
-    
+
     /*
      * (non-Javadoc)
-     * 
+     *
      * @see pt.lsts.neptus.types.XmlOutputMethods#asXML()
      */
     public String asXML() {
@@ -132,7 +163,7 @@ public class TransitionType implements XmlOutputMethods {
 
     /*
      * (non-Javadoc)
-     * 
+     *
      * @see pt.lsts.neptus.types.XmlOutputMethods#asXML(java.lang.String)
      */
     public String asXML(String rootElementName) {
@@ -144,7 +175,7 @@ public class TransitionType implements XmlOutputMethods {
 
     /*
      * (non-Javadoc)
-     * 
+     *
      * @see pt.lsts.neptus.types.XmlOutputMethods#asElement()
      */
     public Element asElement() {
@@ -154,7 +185,7 @@ public class TransitionType implements XmlOutputMethods {
 
     /*
      * (non-Javadoc)
-     * 
+     *
      * @see
      * pt.lsts.neptus.types.XmlOutputMethods#asElement(java.lang.String)
      */
@@ -164,7 +195,7 @@ public class TransitionType implements XmlOutputMethods {
 
     /*
      * (non-Javadoc)
-     * 
+     *
      * @see pt.lsts.neptus.types.XmlOutputMethods#asDocument()
      */
     public Document asDocument() {
@@ -174,7 +205,7 @@ public class TransitionType implements XmlOutputMethods {
 
     /*
      * (non-Javadoc)
-     * 
+     *
      * @see
      * pt.lsts.neptus.types.XmlOutputMethods#asDocument(java.lang.String)
      */
@@ -195,9 +226,9 @@ public class TransitionType implements XmlOutputMethods {
     @Override
     public String toString() {
         return "[" + getId() + "] " + sourceManeuver + " -> " + targetManeuver + " (" + condition
-                + (getAction() != null && !"".equalsIgnoreCase(getAction().toString())?" / " + action:"") + ")";
+                + (getAction() != null && !"".equalsIgnoreCase(getAction().toString()) ? " / " + action : "") + ")";
     }
-    
+
     /* (non-Javadoc)
      * @see java.lang.Object#clone()
      */
@@ -212,7 +243,7 @@ public class TransitionType implements XmlOutputMethods {
             clone.action = this.action;
         return clone;
     }
-    
+
     /* (non-Javadoc)
      * @see java.lang.Object#equals(java.lang.Object)
      */
@@ -221,7 +252,7 @@ public class TransitionType implements XmlOutputMethods {
         if (!(obj instanceof TransitionType))
             return super.equals(obj);
         TransitionType other = (TransitionType) obj;
-        
+
         if (!this.getId().equals(other.getId()))
             return false;
         if (!this.getSourceManeuver().equals(other.getSourceManeuver()))
@@ -230,8 +261,13 @@ public class TransitionType implements XmlOutputMethods {
             return false;
         if (!this.getCondition().toString().equals(other.getCondition().toString()))
             return false;
-        if (!this.getAction().toString().equals(other.getAction().toString()))
+        if (this.getAction() != null ^ other.getAction() != null) {
             return false;
+        } else {
+            if (this.getAction() != null) {
+                return this.getAction().toString().equals(other.getAction().toString());
+            }
+        }
 
         return true;
     }

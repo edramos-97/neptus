@@ -45,7 +45,7 @@ public final class Operations {
         return newSet;
     }
 
-    public static <E, R> Set<R> mappedd(Set<E> set, Mapper<E, R> mapper) {
+    public static <E, R> Set<R> mapped(Set<E> set, Mapper<E, R> mapper) {
         final Set<R> newSet = new HashSet<>();
         for (E element : set) {
             newSet.add(mapper.call(element));

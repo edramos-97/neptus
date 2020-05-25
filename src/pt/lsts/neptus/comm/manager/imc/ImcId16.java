@@ -32,15 +32,16 @@
  */
 package pt.lsts.neptus.comm.manager.imc;
 
-import java.util.StringTokenizer;
-
 import pt.lsts.neptus.NeptusLog;
+
+import java.io.Serializable;
+import java.util.StringTokenizer;
 
 /**
  * This class manages IMC 16 bits IDs of the form xx:xx (hexadecimal)
  * @author Paulo Dias
  */
-public class ImcId16 extends Number implements Comparable<ImcId16>{
+public class ImcId16 extends Number implements Comparable<ImcId16>, Serializable {
 
 	private static final long serialVersionUID = 4540568234437157049L;
 

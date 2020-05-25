@@ -20,15 +20,16 @@ public class ConsistencyManager {
 
     private static ConsistencyManager consistencyManager = null;
 
-    private ImcId16 leader;
-
+    HashMap<String, UUID> removedNameToID = new HashMap<>();
     HashMap<String, UUID> nameToID = new HashMap<>();
-    HashMap<UUID, CRDT> idToCRDT = new HashMap<>();
+    HashMap<UUID, CRDT> IDToCRDT = new HashMap<>();
 
     ImcTcpTransport tcpTransport;
 
     HashMap<String,InetAddress> wellKnownPeers = new HashMap<>();
     Set<InetAddress> activeConnections = new HashSet<>();
+
+    Vector<ChangeListener> planListeners = new Vector<>();
 
     public ConsistencyManager() {
         super();
@@ -53,6 +54,7 @@ public class ConsistencyManager {
 
 //    ::::::::::::::::::::::::::::::::::::::::: CRDT-CRUD operations
 
+    // CREATE
     public <K,V> UUID createCRDT(String name, Map<K,V> dataObject, CRDT.CRDTType crdtType) {
         CRDT newCRDT;
         switch (crdtType) {
@@ -94,8 +96,9 @@ public class ConsistencyManager {
             NeptusLog.pub().warn("Overwriting CRDT object with name \"" + name + "\"");
         }
         UUID newID = UUID.randomUUID();
+        removedNameToID.remove(name);
         nameToID.put(name,newID);
-        idToCRDT.put(newID, crdtObject);
+        IDToCRDT.put(newID, crdtObject);
 
         shareLocal(name,newID,crdtObject);
 
@@ -118,40 +121,52 @@ public class ConsistencyManager {
         return newCRDT;
     }
 
+    // UPDATE
     public UUID updateCRDT(String name, Object dataObject) {
 //        TODO: verify name existence
         UUID crdtID = nameToID.get(name);
         NeptusLog.pub().debug("Local update to CRDT object with id: " + crdtID);
-        CRDT oldCRDT = idToCRDT.get(crdtID);
+        CRDT oldCRDT = IDToCRDT.get(crdtID);
         CRDT updatedCrdt = oldCRDT.updateFromLocal(dataObject);
-        idToCRDT.put(crdtID, updatedCrdt);
+        IDToCRDT.put(crdtID, updatedCrdt);
         shareLocal(name,crdtID, updatedCrdt);
         return crdtID;
     }
 
     public void updateFromNetwork(LinkedHashMap<String,?> crdtData, ImcId16 sender) {
         String senderID = sender.toPrettyString();
-        String remoteName = (String)crdtData.get("name");
-        UUID id = UUID.fromString((String)crdtData.get("id"));
-        CRDT.CRDTType type = CRDT.CRDTType.valueOf((String) crdtData.get("type"));
+        try {
+            String remoteName = (String)crdtData.get("name");
+            UUID id = UUID.fromString((String)crdtData.get("id"));
+            CRDT.CRDTType type = CRDT.CRDTType.valueOf((String) crdtData.get("type"));
 
-        if(!idToCRDT.containsKey(id)){
-            CRDT newCRDT = createCRDT(type);
-            newCRDT = newCRDT.updateFromNetwork(crdtData);
-            idToCRDT.put(id, newCRDT);
-            nameToID.put(remoteName + "-" + senderID, id);
-        } else {
-            CRDT localCRDT = idToCRDT.get(id);
-            CRDT updatedCRDT = localCRDT.updateFromNetwork(crdtData);
-            idToCRDT.put(id,updatedCRDT);
+            if(!IDToCRDT.containsKey(id)) {
+                CRDT newCRDT = createCRDT(type);
+                newCRDT = newCRDT.updateFromNetwork(crdtData);
+                IDToCRDT.put(id, newCRDT);
+                nameToID.put(remoteName + "-" + senderID, id);
+            } else {
+                CRDT localCRDT = IDToCRDT.get(id);
+                CRDT updatedCRDT = localCRDT.updateFromNetwork(crdtData);
+                IDToCRDT.put(id,updatedCRDT);
+            }
+            notifyCRDTChanges(id);
+        } catch (Exception e) {
+            NeptusLog.pub().debug("Invalid data received in CRDT message");
         }
-        notifyCRDTChanges(id);
     }
 
-    public void deleteCRDT(LinkedHashMap<String,?> crdtData, ImcId16 sender) {
+    // DELETE
+    public UUID deleteCRDT(String name) {
+        UUID removedUUID= nameToID.remove(name);
+        removedNameToID.put(name, removedUUID);
+        return removedUUID;
+    }
+
+    public void deleteFromNetwork(LinkedHashMap<String,?> crdtData, ImcId16 sender) {
         UUID id = UUID.fromString((String)crdtData.get("id"));
 
-        idToCRDT.remove(id);
+        IDToCRDT.remove(id);
 
         Iterator<Map.Entry<String,UUID>> iterator = nameToID.entrySet().iterator();
 
@@ -163,21 +178,23 @@ public class ConsistencyManager {
         }
     }
 
+    // READ
     public CRDT getCRDT(UUID id) {
-        return idToCRDT.get(id);
+        return IDToCRDT.get(id);
     }
 
     private void notifyCRDTChanges(UUID id) {
         System.out.println("\nNotified changes on id:" + id + "\n");
         System.out.print("Updated Object:");
-        System.out.println(idToCRDT.get(id).payload());
+        System.out.println(IDToCRDT.get(id).payload());
         // TODO: update local data for user information
     }
 
 //    ::::::::::::::::::::::::::::::::::::::::: Change handlers
 
-    private void handlePlanChanges() {
-
+    public void addPlanListener(ChangeListener mcl) {
+        if (!planListeners.contains(mcl))
+            planListeners.add(mcl);
     }
 
 //    ::::::::::::::::::::::::::::::::::::::::: Msg Senders
@@ -201,7 +218,7 @@ public class ConsistencyManager {
                 updateFromNetwork(data, new ImcId16(evt.getSrcEnt()));
                 break;
             case "crdt_removed":
-                deleteCRDT(data, new ImcId16(evt.getSrcEnt()));
+                deleteFromNetwork(data, new ImcId16(evt.getSrcEnt()));
                 break;
             case "crdt_request":
                 // TODO: analyze requested id's and send local version
@@ -284,4 +301,8 @@ public class ConsistencyManager {
             }
         }
     };
+
+    public interface ChangeListener {
+        public void change(Object newData);
+    }
 }
