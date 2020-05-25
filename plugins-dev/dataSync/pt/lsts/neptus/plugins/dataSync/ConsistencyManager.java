@@ -184,10 +184,13 @@ public class ConsistencyManager {
     }
 
     private void notifyCRDTChanges(UUID id) {
+        CRDT crdt = IDToCRDT.get(id);
         System.out.println("\nNotified changes on id:" + id + "\n");
         System.out.print("Updated Object:");
         System.out.println(IDToCRDT.get(id).payload());
-        // TODO: update local data for user information
+        if(crdt instanceof PlanCRDT){
+            notifyPlanListeners(((PlanCRDT) crdt).payload());
+        }
     }
 
 //    ::::::::::::::::::::::::::::::::::::::::: Change handlers
@@ -195,6 +198,12 @@ public class ConsistencyManager {
     public void addPlanListener(ChangeListener mcl) {
         if (!planListeners.contains(mcl))
             planListeners.add(mcl);
+    }
+
+    public void notifyPlanListeners(PlanType plan) {
+        for (ChangeListener list: planListeners) {
+            list.change(plan);
+        }
     }
 
 //    ::::::::::::::::::::::::::::::::::::::::: Msg Senders

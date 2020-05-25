@@ -225,6 +225,7 @@ public class DataSynchronization extends ConsolePanel {
         @Override
         public void change(Object planType) {
             getConsole().getMission().addPlan((PlanType) planType);
+            getConsole().getMission().save(true);
         }
     };
 

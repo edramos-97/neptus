@@ -125,7 +125,6 @@ public class ORSet<E extends XmlOutputMethods> extends CRDT implements Serializa
         return this;
     }
 
-
     @Override
     public LinkedHashMap<String, ?> toLinkedHashMap(String localName, UUID id) {
         return null;

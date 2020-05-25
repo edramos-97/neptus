@@ -76,6 +76,15 @@ public class PlanCRDT extends CRDT {
             throw new IllegalArgumentException("PlanCRDT payload requires a signle non-null MissionType Parameter");
         }
         PlanType temp = new PlanType((MissionType)params[0]);
+
+        for (Maneuver man : vertex.payload()) {
+            temp.getGraph().addManeuver(man);
+        }
+
+        for (TransitionType trans: edge.payload()) {
+            temp.getGraph().addTransition(trans);
+        }
+
         return temp;
     }
 
@@ -110,7 +119,7 @@ public class PlanCRDT extends CRDT {
             edge.add(trans);
         }
 
-        return new PlanCRDT();
+        return this;
     }
 
     @Override
@@ -171,6 +180,10 @@ public class PlanCRDT extends CRDT {
     }
 
     public static void main(String[] args) {
+        System.out.println(PlanCRDT.class.getName());
+        System.out.println(PlanCRDT.class.getSimpleName());
+        System.out.println(PlanCRDT.class.getCanonicalName());
+        System.out.println(PlanCRDT.class.getTypeName());
         TransitionType trans = new TransitionType("goto1","goto2");
         TransitionType trans1 = new TransitionType("goto1" ,"goto2");
         trans1.setId(trans.getId());
