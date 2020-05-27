@@ -1,6 +1,5 @@
 package pt.lsts.neptus.plugins.dataSync.CRDTs;
 
-import pt.lsts.neptus.comm.manager.imc.ImcId16;
 import pt.lsts.neptus.mp.Maneuver;
 import pt.lsts.neptus.types.mission.GraphType;
 import pt.lsts.neptus.types.mission.MissionType;
@@ -12,9 +11,9 @@ import java.util.*;
 
 public class PlanCRDT extends CRDT {
 
-    ORSet<Maneuver> vertex = new ORSet<>(new ImcId16("0x0000"));
+    ORSet<Maneuver> vertex = new ORSet<>();
 
-    ORSet<TransitionType> edge = new ORSet<>(new ImcId16("0x0000"));
+    ORSet<TransitionType> edge = new ORSet<>();
 
     public PlanCRDT() { }
 
@@ -129,10 +128,10 @@ public class PlanCRDT extends CRDT {
 
     @Override
     public CRDT updateFromNetwork(LinkedHashMap<String,?> dataObject) {
-        ORSet<Maneuver> remoteVertex = new ORSet<Maneuver>(new ImcId16("0x0000"));
+        ORSet<Maneuver> remoteVertex = new ORSet<Maneuver>();
         remoteVertex.updateFromNetwork((LinkedHashMap<String, ?>)deserialize((String) dataObject.get("vertex")));
 
-        ORSet<TransitionType> remoteTrans = new ORSet<>(new ImcId16("0x0000"));
+        ORSet<TransitionType> remoteTrans = new ORSet<>();
         remoteTrans.updateFromNetwork((LinkedHashMap<String, ?>)deserialize((String) dataObject.get("edge")));
 
         PlanCRDT remotePlan = new PlanCRDT(remoteVertex,remoteTrans);
@@ -185,11 +184,11 @@ public class PlanCRDT extends CRDT {
     }
 
     public static void main(String[] args) {
-        ImcId16 set1ID = new ImcId16("0x1111");
-        ImcId16 set2ID = new ImcId16("0x2222");
-        ORSet<String> set1 = new ORSet<String>(set1ID);
-        ORSet<String> set2 = new ORSet<String>(set2ID);
-        ORSet<String> set3 = new ORSet<String>(set2ID);
+//        ImcId16 set1ID = new ImcId16("0x1111");
+//        ImcId16 set2ID = new ImcId16("0x2222");
+//        ORSet<String> set1 = new ORSet<String>(set1ID);
+//        ORSet<String> set2 = new ORSet<String>(set2ID);
+//        ORSet<String> set3 = new ORSet<String>(set2ID);
 
         /*HashSet hashSet = new HashSet();
         ORSet.Tuple tup1 = new ORSet.Tuple("hello1", 1L,new ImcId16("0x1111"));
@@ -198,32 +197,32 @@ public class PlanCRDT extends CRDT {
         hashSet.add(tup1);
         System.out.println(hashSet.contains(tup2));*/
 
-        set1.add("hello1");
-        set1.add("hello2");
-        set1.add("hello1");
-
-        LinkedHashMap<String,?> dataObject = set1.toLinkedHashMap("Set1", UUID.randomUUID(), "string");
-
-        set2.updateFromNetwork(dataObject);
-
-        set3.merge(set2);
-
-        set1.add("hello3");
-        dataObject = set1.toLinkedHashMap("Set1", UUID.randomUUID(), "string");
-
-        set2 = new ORSet<String>(set2ID);
-        set2.updateFromNetwork(dataObject);
-
-        set3.merge(set2);
-
-        set3.add("hello from 3");
-        dataObject = set3.toLinkedHashMap("Set1", UUID.randomUUID(), "string");
-
-        set2 = new ORSet<String>(set2ID);
-        set2.updateFromNetwork(dataObject);
-
-        set1.merge(set2);
-
-        System.out.println(set1);
+//        set1.add("hello1");
+//        set1.add("hello2");
+//        set1.add("hello1");
+//
+//        LinkedHashMap<String,?> dataObject = set1.toLinkedHashMap("Set1", UUID.randomUUID(), "string");
+//
+//        set2.updateFromNetwork(dataObject);
+//
+//        set3.merge(set2);
+//
+//        set1.add("hello3");
+//        dataObject = set1.toLinkedHashMap("Set1", UUID.randomUUID(), "string");
+//
+//        set2 = new ORSet<String>(set2ID);
+//        set2.updateFromNetwork(dataObject);
+//
+//        set3.merge(set2);
+//
+//        set3.add("hello from 3");
+//        dataObject = set3.toLinkedHashMap("Set1", UUID.randomUUID(), "string");
+//
+//        set2 = new ORSet<String>(set2ID);
+//        set2.updateFromNetwork(dataObject);
+//
+//        set1.merge(set2);
+//
+//        System.out.println(set1);
     }
 }

@@ -4,6 +4,7 @@ import pt.lsts.neptus.comm.manager.imc.ImcId16;
 import pt.lsts.neptus.comm.manager.imc.ImcMsgManager;
 import pt.lsts.neptus.mp.Maneuver;
 import pt.lsts.neptus.plugins.dataSync.Operations;
+import pt.lsts.neptus.types.XmlOutputMethods;
 import pt.lsts.neptus.types.mission.TransitionType;
 
 import java.io.Serializable;
@@ -14,7 +15,7 @@ import java.util.*;
 Implementation based on the work
 Bieniusa, Annette, et al. "An optimized conflict-free replicated set." arXiv preprint arXiv:1210.3368 (2012).
 */
-public class ORSet<E /*extends XmlOutputMethods*/> extends CRDT implements Serializable {
+public class ORSet<E extends XmlOutputMethods> extends CRDT implements Serializable {
 
     ImcId16 myId = ImcMsgManager.getManager().getLocalId();
 
@@ -23,10 +24,9 @@ public class ORSet<E /*extends XmlOutputMethods*/> extends CRDT implements Seria
 
     VectorClock clock = new VectorClock();
 
-    public ORSet(ImcId16 tempId) {
+    public ORSet() {
         set = new HashSet<>();
         versionVector = new TreeMap<>();
-        myId = tempId;
         versionVector.put(myId, clock.value());
     }
 
@@ -139,8 +139,8 @@ public class ORSet<E /*extends XmlOutputMethods*/> extends CRDT implements Seria
                 ImcId16>>() {
             @Override
             public Tuple<String, Long, ImcId16> call(Tuple<E, Long, ImcId16> element) {
-//                   return new Tuple<>(element.getElement().asXML(),element.getTime(), element.getReplicaId());
-                return new Tuple<>(element.getElement().toString(), element.getTime(), element.getReplicaId());
+                return new Tuple<>(element.getElement().asXML(),element.getTime(), element.getReplicaId());
+//                return new Tuple<>(element.getElement().toString(), element.getTime(), element.getReplicaId());
             }
         }));
         map.put("versionVector", versionVector);
@@ -175,9 +175,9 @@ public class ORSet<E /*extends XmlOutputMethods*/> extends CRDT implements Seria
                     case "transitionType":
                         newElement = (E) TransitionType.createFromXml(tuple.getElement());
                         break;
-                    case "string":
-                        newElement = (E) new String(tuple.getElement());
-                        break;
+//                    case "string":
+//                        newElement = (E) new String(tuple.getElement());
+//                        break;
                     default:
                         newElement = null;
                 }
