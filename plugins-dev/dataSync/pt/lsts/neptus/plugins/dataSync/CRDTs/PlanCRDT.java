@@ -1,6 +1,7 @@
 package pt.lsts.neptus.plugins.dataSync.CRDTs;
 
 import pt.lsts.neptus.mp.Maneuver;
+import pt.lsts.neptus.types.XmlOutputMethods;
 import pt.lsts.neptus.types.mission.GraphType;
 import pt.lsts.neptus.types.mission.MissionType;
 import pt.lsts.neptus.types.mission.TransitionType;
@@ -12,8 +13,9 @@ import java.util.*;
 public class PlanCRDT extends CRDT {
 
     ORSet<Maneuver> vertex = new ORSet<>();
-
     ORSet<TransitionType> edge = new ORSet<>();
+
+    String initialManeuverID;
 
     public PlanCRDT() { }
 
@@ -86,6 +88,13 @@ public class PlanCRDT extends CRDT {
         }
 
         temp.setId(name);
+        temp.getGraph().setInitialManeuver(initialManeuverID);
+
+        try {
+            temp.validatePlan();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
 
         return temp;
     }
@@ -93,6 +102,8 @@ public class PlanCRDT extends CRDT {
     @Override
     public CRDT updateFromLocal(Object dataObject) {
         PlanType updatedPlan = (PlanType) dataObject;
+
+        initialManeuverID = updatedPlan.getGraph().getInitialManeuverId();
 
         Set<Maneuver> updatedManeuvers =
                 new HashSet<>(Arrays.asList((updatedPlan.getGraph().getAllManeuvers())));
@@ -136,6 +147,8 @@ public class PlanCRDT extends CRDT {
         ORSet<TransitionType> remoteTrans = new ORSet<>();
         remoteTrans.updateFromNetwork((LinkedHashMap<String, ?>)deserialize((String) dataObject.get("edge")));
 
+        initialManeuverID = (String) dataObject.get("initialMan");
+
         PlanCRDT remotePlan = new PlanCRDT(remoteVertex,remoteTrans);
         return this.merge(remotePlan);
     }
@@ -150,14 +163,15 @@ public class PlanCRDT extends CRDT {
             put("vertex",serialize(vertexMap));
             HashMap<String, ?> edgeMap = edge.toLinkedHashMap(null, null, "transitionType");
             put("edge", serialize(edgeMap));
+            put("initialMan", initialManeuverID);
         }};
     }
 
 //    UTILITY
-    private boolean contains(Set<? extends Comparable> set, Comparable element) {
-        Iterator<? extends Comparable> it = set.iterator();
+    private boolean contains(Set<? extends XmlOutputMethods> set, XmlOutputMethods element) {
+        Iterator<? extends XmlOutputMethods> it = set.iterator();
         while (it.hasNext()) {
-            if (it.next().compareTo(element) == 0) {
+            if (it.next().asXML().equals(element.asXML())) {
                 return true;
             }
         }
