@@ -32,32 +32,10 @@
  */
 package pt.lsts.neptus.types.mission.plan;
 
-import java.awt.Color;
-import java.awt.Graphics2D;
-import java.awt.image.BufferedImage;
-import java.io.ByteArrayOutputStream;
-import java.security.MessageDigest;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Vector;
-
-import org.dom4j.Attribute;
-import org.dom4j.Document;
-import org.dom4j.DocumentHelper;
-import org.dom4j.Element;
-import org.dom4j.Node;
-
 import com.l2fprod.common.propertysheet.DefaultProperty;
 import com.l2fprod.common.propertysheet.Property;
-
-import pt.lsts.imc.IMCDefinition;
-import pt.lsts.imc.IMCMessage;
-import pt.lsts.imc.IMCOutputStream;
-import pt.lsts.imc.PlanManeuver;
-import pt.lsts.imc.PlanSpecification;
-import pt.lsts.imc.PlanTransition;
-import pt.lsts.imc.PlanVariable;
+import org.dom4j.*;
+import pt.lsts.imc.*;
 import pt.lsts.neptus.NeptusLog;
 import pt.lsts.neptus.comm.IMCUtils;
 import pt.lsts.neptus.comm.SystemUtils;
@@ -92,6 +70,15 @@ import pt.lsts.neptus.types.vehicle.VehiclesHolder;
 import pt.lsts.neptus.util.ByteUtil;
 import pt.lsts.neptus.util.Dom4JUtil;
 import pt.lsts.neptus.util.NameNormalizer;
+
+import java.awt.*;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
+import java.security.MessageDigest;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Vector;
 
 /**
  * @author Paulo Dias
@@ -199,7 +186,7 @@ public class PlanType implements XmlOutputMethods, PropertiesProvider, NameId {
     public boolean load(String xml) {
         // Clear data
         vehicles.clear();
-        graph = null;
+//        graph = null;
         startActions.clearMessages();
         endActions.clearMessages();
         planElements.getPlanElements().clear();
