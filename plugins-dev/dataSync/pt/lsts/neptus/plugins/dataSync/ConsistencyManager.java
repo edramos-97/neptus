@@ -153,6 +153,7 @@ public class ConsistencyManager {
             }
             notifyCRDTChanges(id);
         } catch (Exception e) {
+            e.printStackTrace();
             NeptusLog.pub().debug("Invalid data received in CRDT message");
         }
     }
