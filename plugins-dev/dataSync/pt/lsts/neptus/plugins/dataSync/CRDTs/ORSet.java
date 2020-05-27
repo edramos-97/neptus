@@ -15,7 +15,7 @@ import java.util.*;
 Implementation based on the work
 Bieniusa, Annette, et al. "An optimized conflict-free replicated set." arXiv preprint arXiv:1210.3368 (2012).
 */
-public class ORSet<E extends XmlOutputMethods> extends CRDT implements Serializable {
+public class ORSet<E extends XmlOutputMethods & Comparable> extends CRDT implements Serializable {
 
     ImcId16 myId = ImcMsgManager.getManager().getLocalId();
 
@@ -71,9 +71,20 @@ public class ORSet<E extends XmlOutputMethods> extends CRDT implements Serializa
     }
 
     public ORSet<E> merge(ORSet<E> anotherSet) {
-
-        HashSet<Tuple<E, Long, ImcId16>> temp = new HashSet<>(set);
+        Set<Tuple<E, Long, ImcId16>> temp = new HashSet<>(set);
         temp.retainAll(anotherSet.set);
+        temp = anotherSet.set;
+        temp = Operations.filtered(temp, new Operations.Predicate<Tuple<E, Long, ImcId16>>() {
+            @Override
+            public boolean call(Tuple<E, Long, ImcId16> tuple) {
+                for (Tuple<E, Long, ImcId16> innerTuple : set) {
+                    if (innerTuple.getElement().compareTo(tuple.getElement()) == 0) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+        });
 
         Set<Tuple<E, Long, ImcId16>> temp1 = Operations.filtered(Operations
                 .diff(set, anotherSet.set), tuple -> {

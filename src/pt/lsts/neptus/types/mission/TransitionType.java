@@ -44,7 +44,7 @@ import pt.lsts.neptus.util.NameNormalizer;
  *
  * @author ZP
  */
-public class TransitionType implements XmlOutputMethods {
+public class TransitionType implements XmlOutputMethods, Comparable<TransitionType> {
 
     private static final String DEFAULT_ROOT_ELEMENT = "edge";
     String id;
@@ -270,5 +270,10 @@ public class TransitionType implements XmlOutputMethods {
         }
 
         return true;
+    }
+
+    @Override
+    public int compareTo(TransitionType o) {
+        return getId().compareTo(o.getId());
     }
 }

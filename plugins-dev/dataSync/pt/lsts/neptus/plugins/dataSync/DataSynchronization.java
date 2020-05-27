@@ -234,6 +234,7 @@ public class DataSynchronization extends ConsolePanel {
             getConsole().getMission().addPlan(newPlan);
             getConsole().getMission().save(true);
             getConsole().updateMissionListeners();
+            getConsole().setPlan(newPlan);
         }
     };
 

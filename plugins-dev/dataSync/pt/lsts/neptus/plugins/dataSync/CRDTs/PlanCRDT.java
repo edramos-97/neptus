@@ -99,12 +99,12 @@ public class PlanCRDT extends CRDT {
         Set<Maneuver> currManeuvers = vertex.payload();
 
         for (Maneuver man: currManeuvers){
-            if(!updatedManeuvers.contains(man)) {
+            if(!contains(updatedManeuvers,man)) {
                 vertex.remove(man);
             }
         }
         for (Maneuver man: updatedManeuvers) {
-            if(!currManeuvers.contains(man)){
+            if(!contains(currManeuvers,man)){
                 vertex.add(man);
             }
         }
@@ -114,13 +114,15 @@ public class PlanCRDT extends CRDT {
         Set<TransitionType> currTransitions = edge.payload();
 
         for (TransitionType trans: currTransitions){
-            if(!updatedTransitions.contains(trans)) {
+            if(!contains(updatedTransitions,trans)) {
                 edge.remove(trans);
             }
         }
 
         for (TransitionType trans: updatedTransitions) {
-            edge.add(trans);
+            if(!contains(currTransitions,trans)){
+                edge.add(trans);
+            }
         }
 
         return this;
@@ -149,6 +151,17 @@ public class PlanCRDT extends CRDT {
             HashMap<String, ?> edgeMap = edge.toLinkedHashMap(null, null, "transitionType");
             put("edge", serialize(edgeMap));
         }};
+    }
+
+//    UTILITY
+    private boolean contains(Set<? extends Comparable> set, Comparable element) {
+        Iterator<? extends Comparable> it = set.iterator();
+        while (it.hasNext()) {
+            if (it.next().compareTo(element) == 0) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private String serialize(Object set){
