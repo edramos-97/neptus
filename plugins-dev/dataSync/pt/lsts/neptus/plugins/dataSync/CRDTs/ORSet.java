@@ -226,13 +226,11 @@ public class ORSet<E extends XmlOutputMethods & Comparable> extends CRDT impleme
 
         @Override
         public boolean equals(Object obj) {
-            if (obj instanceof Tuple) {
-                return ((Tuple) obj).getElement().equals(element) &&
-                        ((Tuple) obj).getReplicaId().equals(replicaId) &&
-                        ((Tuple) obj).getTime().equals(time);
-            } else {
-                return false;
-            }
+            if(obj == null || obj.getClass()!= this.getClass()) return false;
+
+            return ((Tuple) obj).getElement().equals(element) &&
+                    ((Tuple) obj).getReplicaId().equals(replicaId) &&
+                    ((Tuple) obj).getTime().equals(time);
         }
 
         @Override
