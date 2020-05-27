@@ -143,6 +143,7 @@ public class ConsistencyManager {
             if(!IDToCRDT.containsKey(id)) {
                 CRDT newCRDT = createCRDT(type);
                 newCRDT = newCRDT.updateFromNetwork(crdtData);
+                newCRDT.name = remoteName + "-" + senderID;
                 IDToCRDT.put(id, newCRDT);
                 nameToID.put(remoteName + "-" + senderID, id);
             } else {
@@ -187,9 +188,9 @@ public class ConsistencyManager {
         CRDT crdt = IDToCRDT.get(id);
         System.out.println("\nNotified changes on id:" + id + "\n");
         System.out.print("Updated Object:");
-        System.out.println(IDToCRDT.get(id).payload());
+//        System.out.println(IDToCRDT.get(id).payload());
         if(crdt instanceof PlanCRDT){
-            notifyPlanListeners(((PlanCRDT) crdt).payload());
+            notifyPlanListeners((PlanCRDT) crdt);
         }
     }
 
@@ -200,7 +201,7 @@ public class ConsistencyManager {
             planListeners.add(mcl);
     }
 
-    public void notifyPlanListeners(PlanType plan) {
+    public void notifyPlanListeners(PlanCRDT plan) {
         for (ChangeListener list: planListeners) {
             list.change(plan);
         }
@@ -212,6 +213,15 @@ public class ConsistencyManager {
         LinkedHashMap<String,?> data = crdtData.toLinkedHashMap(localName, id);
 
         Event evtMsg = new Event("crdt_data", "");
+        evtMsg.setData(data);
+        ImcMsgManager.getManager().sendMessage(evtMsg, ImcId16.BROADCAST_ID, "Broadcast");
+    }
+
+    private void deleteLocal (UUID id) {
+        LinkedHashMap<String,Object> data = new LinkedHashMap<>();
+        data.put("id", id.toString());
+
+        Event evtMsg = new Event("crdt_removed", "");
         evtMsg.setData(data);
         ImcMsgManager.getManager().sendMessage(evtMsg, ImcId16.BROADCAST_ID, "Broadcast");
     }

@@ -42,6 +42,7 @@ import pt.lsts.neptus.plugins.PluginDescription;
 import pt.lsts.neptus.plugins.Popup;
 import pt.lsts.neptus.plugins.Popup.POSITION;
 import pt.lsts.neptus.plugins.dataSync.CRDTs.CRDT;
+import pt.lsts.neptus.plugins.dataSync.CRDTs.PlanCRDT;
 import pt.lsts.neptus.plugins.update.Periodic;
 import pt.lsts.neptus.types.mission.MissionType;
 import pt.lsts.neptus.types.mission.plan.PlanType;
@@ -132,8 +133,8 @@ public class DataSynchronization extends ConsolePanel {
     @Subscribe
     public void on(Event evtMsg) {
         System.out.println("Local mgs: " + evtMsg.getTopic());
-        ConsistencyManager.getManager().on(evtMsg);
         if (evtMsg.getSrc() != ImcMsgManager.getManager().getLocalId().intValue()) {
+            ConsistencyManager.getManager().on(evtMsg);
             ElectionManager.getManager().on(evtMsg);
         }
     }
@@ -190,6 +191,11 @@ public class DataSynchronization extends ConsolePanel {
                         element -> !lastPlanList.entrySet().contains(element) && !newPlanIDs.contains(element.getKey()),
                         Map.Entry::getKey);
 
+
+                System.out.println("\n\nnew plans:" + newPlanIDs);
+                System.out.println("removed plans:" + removedPlanIDs);
+                System.out.println("updated plans:" + updatedPlanIDs + "\n\n");
+
                 // delete CRDT from removed plans
                 for (String removedID : removedPlanIDs) {
                     ConsistencyManager.getManager().deleteCRDT(removedID);
@@ -223,9 +229,11 @@ public class DataSynchronization extends ConsolePanel {
 
     ConsistencyManager.ChangeListener planChangeListener = new ConsistencyManager.ChangeListener() {
         @Override
-        public void change(Object planType) {
-            getConsole().getMission().addPlan((PlanType) planType);
+        public void change(Object planCRDT) {
+            PlanType newPlan = ((PlanCRDT) planCRDT).payload(getConsole().getMission());
+            getConsole().getMission().addPlan(newPlan);
             getConsole().getMission().save(true);
+            getConsole().updateMissionListeners();
         }
     };
 
