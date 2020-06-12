@@ -100,7 +100,6 @@ public class ElectionManager {
     }
 
     public void on(Event eventMsg) {
-        System.out.println("ElectionMan: " + eventMsg.getTopic());
         String topic = eventMsg.getTopic();
         String data = (String) eventMsg.getValue("data");
         ImcId16 sender = new ImcId16(eventMsg.getSrc());
@@ -176,7 +175,7 @@ public class ElectionManager {
 //                if same size as network interrupt candidate broadcasting thread
                 break;
             default:
-                NeptusLog.pub().debug("Unknown message topic received in Election Manager");
+                NeptusLog.pub().trace("Unknown message topic received in Election Manager");
         }
     }
 

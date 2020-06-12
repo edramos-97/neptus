@@ -34,6 +34,7 @@ package pt.lsts.neptus.plugins.dataSync;
 
 import com.google.common.eventbus.Subscribe;
 import pt.lsts.imc.Event;
+import pt.lsts.neptus.comm.manager.imc.ImcId16;
 import pt.lsts.neptus.comm.manager.imc.ImcMsgManager;
 import pt.lsts.neptus.console.ConsoleLayout;
 import pt.lsts.neptus.console.ConsolePanel;
@@ -42,11 +43,11 @@ import pt.lsts.neptus.plugins.PluginDescription;
 import pt.lsts.neptus.plugins.Popup;
 import pt.lsts.neptus.plugins.Popup.POSITION;
 import pt.lsts.neptus.plugins.dataSync.CRDTs.CRDT;
+import pt.lsts.neptus.plugins.dataSync.CRDTs.Operations;
 import pt.lsts.neptus.plugins.dataSync.CRDTs.PlanCRDT;
 import pt.lsts.neptus.plugins.update.Periodic;
 import pt.lsts.neptus.types.mission.MissionType;
 import pt.lsts.neptus.types.mission.plan.PlanType;
-import pt.lsts.neptus.util.GuiUtils;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
@@ -120,19 +121,47 @@ public class DataSynchronization extends ConsolePanel {
         return statusSplitPane;
     }
 
+    public static JPanel getTestingPanel() {
+        FlowLayout flowLayout = new FlowLayout();
+        JPanel panel = new JPanel();
+        panel.setBorder(BorderFactory.createLineBorder(Color.BLACK,2));
+        panel.setLayout(flowLayout);
+        flowLayout.setAlignment(FlowLayout.LEADING);
+
+        panel.setComponentOrientation(ComponentOrientation.LEFT_TO_RIGHT);
+
+
+        JButton sendCRDTDataMsgBtn = new JButton("Send data");
+        sendCRDTDataMsgBtn.addActionListener(e -> {
+            Event evtMsg = new Event("crdt_data", "test_data");
+            ImcMsgManager.getManager().sendMessage(evtMsg, ImcId16.BROADCAST_ID, "Broadcast");
+        });
+        JButton sendCRDTDeleteMsgBtn = new JButton("Send delete");
+        sendCRDTDeleteMsgBtn.addActionListener(e -> {
+            Event evtMsg = new Event("crdt_removed", "test_data");
+            ImcMsgManager.getManager().sendMessage(evtMsg, ImcId16.BROADCAST_ID, "Broadcast");
+        });
+
+        panel.add(sendCRDTDataMsgBtn);
+        panel.add(sendCRDTDeleteMsgBtn);
+
+        return panel;
+    }
+
     public static void main(String[] args) {
-        JTabbedPane tabsPane = new JTabbedPane(SwingConstants.TOP);
-
-        JSplitPane statusPane = getStatusPanel();
-        statusPane.setDividerLocation(320);
-        tabsPane.add("Status", statusPane);
-
-        GuiUtils.testFrame(tabsPane, "DataSync", 800, 600);
+//        JTabbedPane tabsPane = new JTabbedPane(SwingConstants.TOP);
+//
+//        JSplitPane statusPane = getStatusPanel();
+//        statusPane.setDividerLocation(320);
+//        tabsPane.add("Status", statusPane);
+//        tabsPane.add("tetsing", getTestingPanel());
+//
+//        GuiUtils.testFrame(tabsPane, "DataSync", 800, 600);
     }
 
     @Subscribe
     public void on(Event evtMsg) {
-        System.out.println("Local mgs: " + evtMsg.getTopic());
+        System.out.println("New Event Msg: " + evtMsg.getTopic());
         if (evtMsg.getSrc() != ImcMsgManager.getManager().getLocalId().intValue()) {
             ConsistencyManager.getManager().on(evtMsg);
             ElectionManager.getManager().on(evtMsg);
@@ -244,6 +273,8 @@ public class DataSynchronization extends ConsolePanel {
         setLayout(new BorderLayout(5, 5));
 
         JTabbedPane tabsPane = new JTabbedPane(SwingConstants.TOP);
+
+        tabsPane.add("Testing", getTestingPanel());
 
         JSplitPane statusPane = getStatusPanel();
         statusPane.setDividerLocation(320);

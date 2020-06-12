@@ -6,10 +6,7 @@ import pt.lsts.neptus.NeptusLog;
 import pt.lsts.neptus.comm.manager.imc.ImcId16;
 import pt.lsts.neptus.comm.manager.imc.ImcMsgManager;
 import pt.lsts.neptus.comm.transports.ImcTcpTransport;
-import pt.lsts.neptus.plugins.dataSync.CRDTs.CRDT;
-import pt.lsts.neptus.plugins.dataSync.CRDTs.GSet;
-import pt.lsts.neptus.plugins.dataSync.CRDTs.LastEventSet;
-import pt.lsts.neptus.plugins.dataSync.CRDTs.PlanCRDT;
+import pt.lsts.neptus.plugins.dataSync.CRDTs.*;
 import pt.lsts.neptus.types.mission.plan.PlanType;
 import pt.lsts.neptus.util.conf.GeneralPreferences;
 
@@ -33,7 +30,7 @@ public class ConsistencyManager {
 
     public ConsistencyManager() {
         super();
-//        testThread.start();
+//        testThread2.start();
     }
 
     /**
@@ -213,8 +210,18 @@ public class ConsistencyManager {
     private void shareLocal(String localName, UUID id, CRDT crdtData) {
         LinkedHashMap<String,?> data = crdtData.toLinkedHashMap(localName, id);
 
-        Event evtMsg = new Event("crdt_data", "");
+        /*LinkedHashMap<String, String> data = new LinkedHashMap<>();
+
+        data.put("key","value");
+        data.put("key2","value2");*/
+
+        Event evtMsg = new Event("crdt_data", "placeholder");
+
         evtMsg.setData(data);
+
+        System.out.println("\n\n\n MY PLAN CRDT MSG");
+        System.out.println(evtMsg);
+
         ImcMsgManager.getManager().sendMessage(evtMsg, ImcId16.BROADCAST_ID, "Broadcast");
     }
 
@@ -231,7 +238,7 @@ public class ConsistencyManager {
 
     public void on(Event evt) {
         String topic = evt.getTopic();
-        LinkedHashMap<String,?> data = evt.getData();
+        LinkedHashMap<String,?> data = parseEventDataString(evt.getString("data"));
 
         switch(topic) {
             case "crdt_data":
@@ -249,6 +256,17 @@ public class ConsistencyManager {
     }
 
 //    ::::::::::::::::::::::::::::::::::::::::: Other
+    private LinkedHashMap<String, String> parseEventDataString(String dataString) {
+        LinkedHashMap<String, String> myDataMap = new LinkedHashMap<>();
+        String[] split = dataString.split(";");
+        System.out.println(Arrays.toString(split));
+        for (int i = 0; i < split.length-1; i++) {
+            String[] split1 = split[i].split("=",2);
+            myDataMap.put(split1[0],split1[1]);
+        }
+        return myDataMap;
+    }
+
     public void createTcpTransport() {
         int localport = GeneralPreferences.commsLocalPortTCP;
 
@@ -272,7 +290,44 @@ public class ConsistencyManager {
     }
 
     public static void main(String[] args) {
+        String test = "";
+//        String test = "{set=[(VP4oAkMA+n7KjfW410EAAAD///8FAEdvdG8zwgEQJyGl9d+AAOc" +
+//                   "/V8PKTcByw78AAABAAQAAgD8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAbBQ=,3,0x41ef), " +
+//                   "(VP4oAkMA+n7KjfW410EAAAD///8FAEdvdG81wgEQJwrL+L+UAOc" +
+//                   "/vXvpX3Nzw78AAABAAQAAgD8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAhWQ=,5,0x41ef), " +
+//                   "(VP4oAkMA+n7KjfW410EAAAD///8FAEdvdG8ywgEQJ6E1Y+pwAOc" +
+//                   "/PTCNWAlzw78AAABAAQAAgD8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAcnc=,2,0x41ef), " +
+//                   "(VP4oAkMA+n7KjfW410EAAAD///8FAEdvdG8xwgEQJ7N2S3Z0AOc" +
+//                   "/eKNcfbhzw78AAABAAQAAgD8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA3cM=,1,0x41ef), " +
+//                   "(VP4oAkMA+n7KjfW410EAAAD///8FAEdvdG80wgEQJ2zl4tKUAOc" +
+//                   "/Ein1ijRzw78AAABAAQAAgD8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFy4=,4,0x41ef)], " +
+//                   "versionVector={0x41ef=5}, type=maneuver}";
+//        String[] split = test.substring(1,test.length()-1).split(", (?=[a-zA-Z])");
+//        LinkedHashMap<String, String> dataMap = new LinkedHashMap<>();
+//        for (String s : split) {
+//            String[] entry = s.split("=",2);
+//            dataMap.put(entry[0],entry[1]);
+//        }
+//
+//        String setString = dataMap.get("set");
+//        String[] setElems = setString.substring(2, setString.length() - 2).split("\\), \\(");
+//        for (String setElemStr : setElems) {
+//            String[] tupleElemsStr = setElemStr.split(",");
+//            System.out.println(String.format("Tuple: (%s,%s,%s)", tupleElemsStr));
+//            // put in tuple set
+//        }
+//
+//        String versionVectorString = dataMap.get("versionVector");
+//        String[] vectorElems = versionVectorString.substring(1, versionVectorString.length() - 1).split(", ");
+//        for (String vectorElemStr : vectorElems) {
+//            String[] mapElemsStr = vectorElemStr.split("=");
+//            System.out.println(String.format("Version Entry: %s = %d", new ImcId16(mapElemsStr[0]),
+//                    Long.parseLong(mapElemsStr[1])));
+//            // fill version vector
+//        }
+    }
 
+    private void testFunction() {
         HashMap<String,Long> map = new HashMap();
 
         HashSet<String> lastPlanList = new HashSet<>();
@@ -319,6 +374,24 @@ public class ConsistencyManager {
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
+        }
+    };
+
+    Thread testThread2 = new Thread() {
+        @Override
+        public void run() {
+            super.run();
+
+            Event myMsg = new Event("local","Hello");
+            for (int i = 0; i < 20; i++) {
+                ImcMsgManager.getManager().sendMessage(myMsg,ImcId16.BROADCAST_ID,"Broadcast");
+                try {
+                    Thread.sleep(1000);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+            System.out.println("Ended message sending");
         }
     };
 

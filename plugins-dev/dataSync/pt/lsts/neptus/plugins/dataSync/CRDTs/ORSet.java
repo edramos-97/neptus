@@ -1,13 +1,15 @@
 package pt.lsts.neptus.plugins.dataSync.CRDTs;
 
+import pt.lsts.imc.IMCDefinition;
+import pt.lsts.imc.IMCMessage;
+import pt.lsts.imc.IMCOutputStream;
 import pt.lsts.neptus.comm.manager.imc.ImcId16;
 import pt.lsts.neptus.comm.manager.imc.ImcMsgManager;
-import pt.lsts.neptus.mp.Maneuver;
-import pt.lsts.neptus.plugins.dataSync.Operations;
-import pt.lsts.neptus.types.XmlOutputMethods;
-import pt.lsts.neptus.types.mission.TransitionType;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.io.Serializable;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 
@@ -15,7 +17,7 @@ import java.util.*;
 Implementation based on the work
 Bieniusa, Annette, et al. "An optimized conflict-free replicated set." arXiv preprint arXiv:1210.3368 (2012).
 */
-public class ORSet<E extends XmlOutputMethods & Comparable> extends CRDT implements Serializable {
+public class ORSet<E extends IMCMessage> extends CRDT implements Serializable {
 
     ImcId16 myId = ImcMsgManager.getManager().getLocalId();
 
@@ -78,7 +80,9 @@ public class ORSet<E extends XmlOutputMethods & Comparable> extends CRDT impleme
             @Override
             public boolean call(Tuple<E, Long, ImcId16> tuple) {
                 for (Tuple<E, Long, ImcId16> innerTuple : set) {
-                    if (innerTuple.getElement().compareTo(tuple.getElement()) == 0) {
+                    IMCMessage innerElem = innerTuple.getElement();
+                    IMCMessage elem = tuple.getElement();
+                    if(sameElements(innerElem,elem)){
                         return true;
                     }
                 }
@@ -113,7 +117,7 @@ public class ORSet<E extends XmlOutputMethods & Comparable> extends CRDT impleme
                 return !Operations.filtered(union, new Operations.Predicate<Tuple<E, Long, ImcId16>>() {
                     @Override
                     public boolean call(Tuple<E, Long, ImcId16> tuple1) {
-                        if (tuple.getElement().equals(tuple1.getElement()) && tuple.getReplicaId()
+                        if (sameElements(tuple.getElement(),tuple1.getElement()) && tuple.getReplicaId()
                                 .equals(tuple1.getReplicaId())) {
                             return tuple.getTime() > tuple1.getTime();
                         } else {
@@ -146,11 +150,21 @@ public class ORSet<E extends XmlOutputMethods & Comparable> extends CRDT impleme
 
     public LinkedHashMap<String, ?> toLinkedHashMap(String localName, UUID id, String genericType) {
         LinkedHashMap<String, Object> map = new LinkedHashMap();
-        map.put("set", Operations.mapped(set, new Operations.Mapper<Tuple<E, Long, ImcId16>, Tuple<String, Long,
-                ImcId16>>() {
+        map.put("set", Operations.mapped(set, new Operations.Mapper<Tuple<E, Long, ImcId16>, String>() {
             @Override
-            public Tuple<String, Long, ImcId16> call(Tuple<E, Long, ImcId16> element) {
-                return new Tuple<>(element.getElement().asXML(),element.getTime(), element.getReplicaId());
+            public String call(Tuple<E, Long, ImcId16> element) {
+                ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                IMCOutputStream imcOs = new IMCOutputStream(baos);
+                try {
+                    element.getElement().serialize(imcOs);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+                byte[] data = baos.toByteArray();
+                String dataString = new String(data, StandardCharsets.US_ASCII);
+                return "(" + Base64.getEncoder().encodeToString(data) + "," + element.getTime() + "," + element
+                        .getReplicaId() +
+                       ")";
 //                return new Tuple<>(element.getElement().toString(), element.getTime(), element.getReplicaId());
             }
         }));
@@ -169,6 +183,10 @@ public class ORSet<E extends XmlOutputMethods & Comparable> extends CRDT impleme
         return null;
     }
 
+    public CRDT updateFromNetwork(String dataString) {
+        return updateFromNetwork(parseDataString(dataString));
+    }
+
     @Override
     public CRDT updateFromNetwork(LinkedHashMap<String, ?> dataObject) {
         String type = (String) dataObject.get("type");
@@ -178,19 +196,29 @@ public class ORSet<E extends XmlOutputMethods & Comparable> extends CRDT impleme
                         Long, ImcId16>>() {
             @Override
             public Tuple<E, Long, ImcId16> call(Tuple<String, Long, ImcId16> tuple) {
-                E newElement;
-                switch (type) {
-                    case "maneuver":
-                        newElement = (E) Maneuver.createFromXML(tuple.getElement());
-                        break;
-                    case "transitionType":
-                        newElement = (E) TransitionType.createFromXml(tuple.getElement());
-                        break;
-//                    case "string":
-//                        newElement = (E) new String(tuple.getElement());
+                E newElement = null;
+                byte[] serializedMsg = Base64.getDecoder().decode(tuple.getElement());
+//                switch (type) {
+//                    case "maneuver":
+//                        try {
+//                            newElement = IMCDefinition.getInstance().parseMessage(serializedMsg);
+//                        } catch (IOException e) {
+//                            e.printStackTrace();
+//                        }
 //                        break;
-                    default:
-                        newElement = null;
+//                    case "transition":
+////                        newElement = (E) TransitionType.createFromXml(tuple.getElement());
+//                        break;
+////                    case "string":
+////                        newElement = (E) new String(tuple.getElement());
+////                        break;
+//                    default:
+//                        newElement = null;
+//                }
+                try {
+                    newElement = (E) IMCDefinition.getInstance().parseMessage(serializedMsg);
+                } catch (IOException e) {
+                    e.printStackTrace();
                 }
                 return new Tuple<>(newElement, tuple.getTime(), tuple.getReplicaId());
             }
@@ -198,7 +226,39 @@ public class ORSet<E extends XmlOutputMethods & Comparable> extends CRDT impleme
 
         versionVector = (Map<ImcId16, Long>) dataObject.get("versionVector");
 
-        return null;
+        return this;
+    }
+
+    // EXTRA LOGIC
+    private LinkedHashMap<String, ?> parseDataString(String dataString) {
+        String[] split = dataString.substring(1, dataString.length() - 1).split(", (?=[a-zA-Z])");
+        LinkedHashMap<String, Object> dataMap = new LinkedHashMap<>();
+        for (String s : split) {
+            String[] entry = s.split("=", 2);
+            dataMap.put(entry[0], entry[1]);
+        }
+
+        HashSet<Tuple<String, Long, ImcId16>> tuples = new HashSet<>();
+        String setString = (String) dataMap.get("set");
+        String[] setElems = setString.substring(2, setString.length() - 2).split("\\), \\(");
+        for (String setElemStr : setElems) {
+            String[] tupleElemsStr = setElemStr.split(",");
+            System.out.println(String.format("Tuple: (%s,%s,%s)", tupleElemsStr));
+            Tuple<String, Long, ImcId16> tempTuple = new Tuple<>(tupleElemsStr[0], Long
+                    .parseLong(tupleElemsStr[1]), new ImcId16(tupleElemsStr[2]));
+            tuples.add(tempTuple);
+        }
+        dataMap.put("set", tuples);
+
+        HashMap<ImcId16, Long> versionVector = new HashMap<>();
+        String versionVectorString = (String) dataMap.get("versionVector");
+        String[] vectorElems = versionVectorString.substring(1, versionVectorString.length() - 1).split(", ");
+        for (String vectorElemStr : vectorElems) {
+            String[] mapElemsStr = vectorElemStr.split("=");
+            versionVector.put(new ImcId16(mapElemsStr[0]), Long.parseLong(mapElemsStr[1]));
+        }
+        dataMap.put("versionVector", versionVector);
+        return dataMap;
     }
 
     static class Tuple<E, T, I> implements Serializable {
@@ -226,16 +286,16 @@ public class ORSet<E extends XmlOutputMethods & Comparable> extends CRDT impleme
 
         @Override
         public boolean equals(Object obj) {
-            if(obj == null || obj.getClass()!= this.getClass()) return false;
+            if (obj == null || obj.getClass() != this.getClass()) return false;
 
             return ((Tuple) obj).getElement().equals(element) &&
-                    ((Tuple) obj).getReplicaId().equals(replicaId) &&
-                    ((Tuple) obj).getTime().equals(time);
+                   ((Tuple) obj).getReplicaId().equals(replicaId) &&
+                   ((Tuple) obj).getTime().equals(time);
         }
 
         @Override
         public int hashCode() {
-            String temp = replicaId.toString()+time.toString()+element.toString();
+            String temp = replicaId.toString() + time.toString() + element.toString();
             return temp.hashCode();
         }
     }

@@ -1,4 +1,4 @@
-package pt.lsts.neptus.plugins.dataSync;
+package pt.lsts.neptus.plugins.dataSync.CRDTs;
 
 import java.util.HashSet;
 import java.util.Set;
