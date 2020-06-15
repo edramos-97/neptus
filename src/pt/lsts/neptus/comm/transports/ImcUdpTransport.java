@@ -31,7 +31,9 @@
  */
 package pt.lsts.neptus.comm.transports;
 
-import pt.lsts.imc.*;
+import pt.lsts.imc.IMCDefinition;
+import pt.lsts.imc.IMCMessage;
+import pt.lsts.imc.IMCOutputStream;
 import pt.lsts.neptus.NeptusLog;
 import pt.lsts.neptus.comm.CommUtil;
 import pt.lsts.neptus.comm.manager.imc.MessageDeliveryListener;
@@ -239,10 +241,7 @@ public class ImcUdpTransport {
 		IMCOutputStream imcOs = new IMCOutputStream(baos);
 
 		try {
-		    int size = message.serialize(imcOs);
-		    if(message instanceof Event || message instanceof PlanSpecification){
-				System.out.println("LAST MESSAGE SENT SIZE:" + size);
-			}
+		    message.serialize(imcOs);
 		    DeliveryListener listener = null;
             if (deliveryListener != null) {
                 listener = new DeliveryListener() {
