@@ -1,9 +1,6 @@
 package pt.lsts.neptus.plugins.dataSync.CRDTs;
 
-import pt.lsts.imc.IMCMessage;
-import pt.lsts.imc.PlanManeuver;
-import pt.lsts.imc.PlanTransition;
-import pt.lsts.neptus.NeptusLog;
+import pt.lsts.imc.*;
 import pt.lsts.neptus.comm.IMCUtils;
 import pt.lsts.neptus.mp.Maneuver;
 import pt.lsts.neptus.mp.maneuvers.IMCSerialization;
@@ -14,6 +11,7 @@ import pt.lsts.neptus.types.mission.TransitionType;
 import pt.lsts.neptus.types.mission.plan.PlanType;
 
 import java.io.*;
+import java.util.Base64;
 import java.util.*;
 
 public class PlanCRDT extends CRDT {
@@ -135,10 +133,10 @@ public class PlanCRDT extends CRDT {
         }
 
         for (PlanTransition trans : edge.payload()) {
-            TransitionType neptusTrans = new TransitionType(trans.getSourceMan(),trans.getDestMan());
+            TransitionType neptusTrans = new TransitionType(trans.getSourceMan(), trans.getDestMan());
 
             ActionType actionType = new ActionType();
-            if(trans.getActions().size() != 0){
+            if (trans.getActions().size() != 0) {
                 actionType.setAction(trans.getActions().toString());
             } else {
                 actionType.setAction("");
@@ -167,6 +165,7 @@ public class PlanCRDT extends CRDT {
     @Override
     public CRDT updateFromLocal(Object dataObject) {
         PlanType updatedPlan = (PlanType) dataObject;
+        boolean updated = false;
 
         initialManeuverID = updatedPlan.getGraph().getInitialManeuverId();
 
@@ -174,47 +173,62 @@ public class PlanCRDT extends CRDT {
         Set<PlanManeuver> currManeuvers = vertex.payload();
 
         for (PlanManeuver man : currManeuvers) {
-            if (!contains(updatedManeuvers,man)) {
+            if (!contains(updatedManeuvers, man)) {
+                updated = true;
                 vertex.remove(man);
             }
         }
-        for (PlanManeuver man: updatedManeuvers) {
-            if(!contains(currManeuvers,man)){
+        for (PlanManeuver man : updatedManeuvers) {
+            if (!contains(currManeuvers, man)) {
+                updated = true;
                 vertex.add(man);
             }
         }
 
-        Set<PlanTransition> updatedTransitions =
-                new HashSet<>(getPlanTransitions(updatedPlan));
+        Set<PlanTransition> updatedTransitions = new HashSet<>(getPlanTransitions(updatedPlan));
         Set<PlanTransition> currTransitions = edge.payload();
 
-        for (PlanTransition trans: currTransitions){
-            if(!contains(updatedTransitions,trans)) {
+        for (PlanTransition trans : currTransitions) {
+            if (!contains(updatedTransitions, trans)) {
+                updated = true;
                 edge.remove(trans);
             }
         }
-
-        for (PlanTransition trans: updatedTransitions) {
-            if(!contains(currTransitions,trans)){
+        for (PlanTransition trans : updatedTransitions) {
+            if (!contains(currTransitions, trans)) {
+                updated = true;
                 edge.add(trans);
             }
         }
 
-        return this;
+        if(updated) {
+            return this;
+        } else {
+            return null;
+        }
     }
 
     @Override
     public CRDT updateFromNetwork(LinkedHashMap<String, ?> dataObject) {
-        ORSet<PlanManeuver> remoteVertex = new ORSet<>();
-        remoteVertex.updateFromNetwork((String) dataObject.get("vertex"));
+        String base64Plan = (String) dataObject.get("planSpec");
+        try {
+            PlanSpecification msg = (PlanSpecification) IMCDefinition.getInstance().parseMessage(Base64.getDecoder().decode(base64Plan));
 
-        ORSet<PlanTransition> remoteTrans = new ORSet<>();
-        remoteTrans.updateFromNetwork(((String) dataObject.get("edge")));
+            ORSet<PlanManeuver> remoteVertex = new ORSet<>();
+            remoteVertex.updateFromNetwork((String) dataObject.get("vertex"), msg.getManeuvers());
 
-        initialManeuverID = (String) dataObject.get("initialMan");
+            ORSet<PlanTransition> remoteTrans = new ORSet<>();
+            remoteTrans.updateFromNetwork((String) dataObject.get("edge"), msg.getTransitions());
 
-        PlanCRDT remotePlan = new PlanCRDT(remoteVertex, remoteTrans);
-        return this.merge(remotePlan);
+            initialManeuverID = msg.getStartManId();
+
+            PlanCRDT remotePlan = new PlanCRDT(remoteVertex, remoteTrans);
+
+            return this.merge(remotePlan);
+        } catch (IOException e) {
+            e.printStackTrace();
+            return null;
+        }
     }
 
     @Override
@@ -224,10 +238,24 @@ public class PlanCRDT extends CRDT {
             put("name", localName);
             put("type", CRDTType.PLAN.name());
             HashMap<String, ?> vertexMap = vertex.toLinkedHashMap(null, null, "maneuver");
+            Set<PlanManeuver> msg_set_man = (Set<PlanManeuver>) vertexMap.get("msg_set");
+            vertexMap.remove("msg_set");
             put("vertex", vertexMap);
             HashMap<String, ?> edgeMap = edge.toLinkedHashMap(null, null, "transitionType");
+            Set<PlanTransition> msg_set_trans = (Set<PlanTransition>) edgeMap.get("msg_set");
+            edgeMap.remove("msg_set");
             put("edge", edgeMap);
-            put("initialMan", initialManeuverID);
+            PlanSpecification planSpec = new PlanSpecification(localName, "", null, Collections
+                    .emptySet(), initialManeuverID, new ArrayList<>(msg_set_man),
+                    new ArrayList<>(msg_set_trans), Collections.emptySet(), Collections.emptySet());
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            IMCOutputStream imcOs = new IMCOutputStream(baos);
+            try {
+                planSpec.serialize(imcOs);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+            put("planSpec", Base64.getEncoder().encodeToString(baos.toByteArray()));
         }};
     }
 
@@ -235,7 +263,7 @@ public class PlanCRDT extends CRDT {
     private boolean contains(Set<? extends IMCMessage> set, IMCMessage element) {
         Iterator<? extends IMCMessage> it = set.iterator();
         while (it.hasNext()) {
-            if (sameElements(it.next(),element)) {
+            if (sameElements(it.next(), element)) {
                 return true;
             }
         }
@@ -246,20 +274,10 @@ public class PlanCRDT extends CRDT {
         ArrayList<PlanManeuver> maneuvers = new ArrayList<>();
 
         for (Maneuver man : plan.getGraph().getAllManeuvers()) {
-            if (man instanceof IMCSerialization) {
-                PlanManeuver m = new PlanManeuver();
-                m.setManeuverId(man.getId());
-                m.setValue("data", ((IMCSerialization)man).serializeToIMC());
-
-                maneuvers.add(m);
-            }
-            else {
-                NeptusLog.pub()
-                        .error("Error converting to IMC Plan: the maneuver "
-                               + man.getId()
-                               + " is not compatible with the IMC Protocol");
-                return null;
-            }
+            PlanManeuver m = new PlanManeuver();
+            m.setManeuverId(man.getId());
+            m.setValue("data", ((IMCSerialization)man).serializeToIMC());
+            maneuvers.add(m);
         }
 
         return maneuvers;

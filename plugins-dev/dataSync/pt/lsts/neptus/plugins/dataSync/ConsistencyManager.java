@@ -125,8 +125,10 @@ public class ConsistencyManager {
         NeptusLog.pub().debug("Local update to CRDT object with id: " + crdtID);
         CRDT oldCRDT = IDToCRDT.get(crdtID);
         CRDT updatedCrdt = oldCRDT.updateFromLocal(dataObject);
-        IDToCRDT.put(crdtID, updatedCrdt);
-        shareLocal(name,crdtID, updatedCrdt);
+        if (updatedCrdt != null) {
+            IDToCRDT.put(crdtID, updatedCrdt);
+            shareLocal(name,crdtID, updatedCrdt);
+        }
         return crdtID;
     }
 

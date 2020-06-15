@@ -162,8 +162,8 @@ public class DataSynchronization extends ConsolePanel {
     @Subscribe
     public void on(Event evtMsg) {
         System.out.println("New Event Msg: " + evtMsg.getTopic());
-        if (evtMsg.getSrc() != ImcMsgManager.getManager().getLocalId().intValue()) {
             ConsistencyManager.getManager().on(evtMsg);
+        if (evtMsg.getSrc() != ImcMsgManager.getManager().getLocalId().intValue()) {
             ElectionManager.getManager().on(evtMsg);
         }
     }

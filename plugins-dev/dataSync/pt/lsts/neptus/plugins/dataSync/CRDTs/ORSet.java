@@ -1,15 +1,14 @@
 package pt.lsts.neptus.plugins.dataSync.CRDTs;
 
-import pt.lsts.imc.IMCDefinition;
 import pt.lsts.imc.IMCMessage;
-import pt.lsts.imc.IMCOutputStream;
+import pt.lsts.imc.PlanManeuver;
+import pt.lsts.imc.PlanTransition;
+import pt.lsts.neptus.NeptusLog;
 import pt.lsts.neptus.comm.manager.imc.ImcId16;
 import pt.lsts.neptus.comm.manager.imc.ImcMsgManager;
+import pt.lsts.neptus.i18n.I18n;
 
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
 import java.io.Serializable;
-import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 
@@ -82,7 +81,7 @@ public class ORSet<E extends IMCMessage> extends CRDT implements Serializable {
                 for (Tuple<E, Long, ImcId16> innerTuple : set) {
                     IMCMessage innerElem = innerTuple.getElement();
                     IMCMessage elem = tuple.getElement();
-                    if(sameElements(innerElem,elem)){
+                    if (sameElements(innerElem, elem)) {
                         return true;
                     }
                 }
@@ -117,7 +116,7 @@ public class ORSet<E extends IMCMessage> extends CRDT implements Serializable {
                 return !Operations.filtered(union, new Operations.Predicate<Tuple<E, Long, ImcId16>>() {
                     @Override
                     public boolean call(Tuple<E, Long, ImcId16> tuple1) {
-                        if (sameElements(tuple.getElement(),tuple1.getElement()) && tuple.getReplicaId()
+                        if (sameElements(tuple.getElement(), tuple1.getElement()) && tuple.getReplicaId()
                                 .equals(tuple1.getReplicaId())) {
                             return tuple.getTime() > tuple1.getTime();
                         } else {
@@ -153,19 +152,24 @@ public class ORSet<E extends IMCMessage> extends CRDT implements Serializable {
         map.put("set", Operations.mapped(set, new Operations.Mapper<Tuple<E, Long, ImcId16>, String>() {
             @Override
             public String call(Tuple<E, Long, ImcId16> element) {
-                ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                IMCOutputStream imcOs = new IMCOutputStream(baos);
-                try {
-                    element.getElement().serialize(imcOs);
-                } catch (Exception e) {
-                    e.printStackTrace();
+                IMCMessage msg = element.getElement();
+                String id;
+                if (msg instanceof PlanManeuver) {
+                    id = ((PlanManeuver) msg).getManeuverId();
+                } else if (msg instanceof PlanTransition) {
+                    id = ((PlanTransition) msg).getSourceMan();
+                } else {
+                    id = "";
                 }
-                byte[] data = baos.toByteArray();
-                String dataString = new String(data, StandardCharsets.US_ASCII);
-                return "(" + Base64.getEncoder().encodeToString(data) + "," + element.getTime() + "," + element
+                return "(" + id + "," + element.getTime() + "," + element
                         .getReplicaId() +
                        ")";
-//                return new Tuple<>(element.getElement().toString(), element.getTime(), element.getReplicaId());
+            }
+        }));
+        map.put("msg_set", Operations.mapped(set, new Operations.Mapper<Tuple<E, Long, ImcId16>, IMCMessage>() {
+            @Override
+            public IMCMessage call(Tuple<E, Long, ImcId16> element) {
+                return element.getElement();
             }
         }));
         map.put("versionVector", versionVector);
@@ -183,54 +187,45 @@ public class ORSet<E extends IMCMessage> extends CRDT implements Serializable {
         return null;
     }
 
-    public CRDT updateFromNetwork(String dataString) {
-        return updateFromNetwork(parseDataString(dataString));
+    public CRDT updateFromNetwork(String dataString, Collection<E> dataSet) {
+        LinkedHashMap<String, Object> dataMap = parseDataString(dataString);
+
+        HashMap<String, Tuple<E, Long, ImcId16>> emptyTuples =
+                (HashMap<String, Tuple<E, Long, ImcId16>>) dataMap.get("set");
+
+        HashSet<Tuple<E, Long, ImcId16>> tuples = new HashSet<>();
+
+        for (E e : dataSet) {
+            if (e instanceof PlanManeuver) {
+                String manId = ((PlanManeuver) e).getManeuverId();
+                Tuple<E, Long, ImcId16> manTuple = emptyTuples.get(manId);
+                manTuple.element = e;
+                tuples.add(manTuple);
+            } else if (e instanceof PlanTransition) {
+                String transId = ((PlanTransition) e).getSourceMan();
+                Tuple<E, Long, ImcId16> transTuple = emptyTuples.get(transId);
+                transTuple.element = e;
+                tuples.add(transTuple);
+            } else {
+                NeptusLog.pub().warn(I18n.text("No configured class interpretation in data synchronization ORSet"));
+            }
+        }
+
+        dataMap.put("set",tuples);
+
+        return updateFromNetwork(dataMap);
     }
 
     @Override
     public CRDT updateFromNetwork(LinkedHashMap<String, ?> dataObject) {
-        String type = (String) dataObject.get("type");
-        set = Operations.mapped((Set<Tuple<String, Long, ImcId16>>) dataObject
-                .get("set"), new Operations.Mapper<Tuple<String, Long, ImcId16>,
-                Tuple<E,
-                        Long, ImcId16>>() {
-            @Override
-            public Tuple<E, Long, ImcId16> call(Tuple<String, Long, ImcId16> tuple) {
-                E newElement = null;
-                byte[] serializedMsg = Base64.getDecoder().decode(tuple.getElement());
-//                switch (type) {
-//                    case "maneuver":
-//                        try {
-//                            newElement = IMCDefinition.getInstance().parseMessage(serializedMsg);
-//                        } catch (IOException e) {
-//                            e.printStackTrace();
-//                        }
-//                        break;
-//                    case "transition":
-////                        newElement = (E) TransitionType.createFromXml(tuple.getElement());
-//                        break;
-////                    case "string":
-////                        newElement = (E) new String(tuple.getElement());
-////                        break;
-//                    default:
-//                        newElement = null;
-//                }
-                try {
-                    newElement = (E) IMCDefinition.getInstance().parseMessage(serializedMsg);
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-                return new Tuple<>(newElement, tuple.getTime(), tuple.getReplicaId());
-            }
-        });
-
+        set = (Set<Tuple<E, Long, ImcId16>>) dataObject.get("set");
         versionVector = (Map<ImcId16, Long>) dataObject.get("versionVector");
 
         return this;
     }
 
     // EXTRA LOGIC
-    private LinkedHashMap<String, ?> parseDataString(String dataString) {
+    private LinkedHashMap<String, Object> parseDataString(String dataString) {
         String[] split = dataString.substring(1, dataString.length() - 1).split(", (?=[a-zA-Z])");
         LinkedHashMap<String, Object> dataMap = new LinkedHashMap<>();
         for (String s : split) {
@@ -238,15 +233,14 @@ public class ORSet<E extends IMCMessage> extends CRDT implements Serializable {
             dataMap.put(entry[0], entry[1]);
         }
 
-        HashSet<Tuple<String, Long, ImcId16>> tuples = new HashSet<>();
+        HashMap<String, Tuple<String, Long, ImcId16>> tuples = new HashMap<>();
         String setString = (String) dataMap.get("set");
         String[] setElems = setString.substring(2, setString.length() - 2).split("\\), \\(");
         for (String setElemStr : setElems) {
             String[] tupleElemsStr = setElemStr.split(",");
-            System.out.println(String.format("Tuple: (%s,%s,%s)", tupleElemsStr));
-            Tuple<String, Long, ImcId16> tempTuple = new Tuple<>(tupleElemsStr[0], Long
+            Tuple<String, Long, ImcId16> tempTuple = new Tuple<>(null, Long
                     .parseLong(tupleElemsStr[1]), new ImcId16(tupleElemsStr[2]));
-            tuples.add(tempTuple);
+            tuples.put(tupleElemsStr[0], tempTuple);
         }
         dataMap.put("set", tuples);
 
