@@ -53,6 +53,7 @@ import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.LineBorder;
 import java.awt.*;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
@@ -62,12 +63,90 @@ import java.util.TreeMap;
  * @author Eduardo Ramos
  */
 @PluginDescription(name = "Automated Data Synchronization", description = "Options for automated data sharing between" +
-        " CCUs and vehicles")
+                                                                          " CCUs and vehicles")
 @Popup(pos = POSITION.RIGHT, width = 800, height = 600)
 public class DataSynchronization extends ConsolePanel {
 
     // Interface Components
     static JList<String> connectedSystems = null;
+    MissionChangeListener missionChangeListener = new MissionChangeListener() {
+        private TreeMap<String, PlanType> lastPlanList = null;
+
+        @Override
+        public void missionReplaced(MissionType mission) {
+
+        }
+
+        @Override
+        public void missionUpdated(MissionType mission) {
+            ConsistencyManager manager = ConsistencyManager.getManager();
+            TreeMap<String, PlanType> currPlanList = mission.getIndividualPlansList();
+//            :::::::: Handle plan changes
+            if (lastPlanList == null) {
+                for (Map.Entry<String, PlanType> entry : currPlanList.entrySet()) {
+                    manager.createCRDT(entry.getKey(), entry.getValue(), CRDT.CRDTType.PLAN);
+                }
+                lastPlanList = new TreeMap<>();
+            } else {
+                Set<String> removedPlanIDs = Operations.diff(lastPlanList.keySet(),
+                        currPlanList.keySet());
+                Set<String> newPlanIDs = Operations.diff(currPlanList.keySet(),
+                        lastPlanList.keySet());
+
+                Set<String> updatedPlanIDs = Operations.filteredAndMapped(currPlanList.entrySet(),
+                        element -> !lastPlanList.entrySet().contains(element) && !newPlanIDs.contains(element.getKey()),
+                        Map.Entry::getKey);
+
+
+                System.out.println("\n\nnew plans:" + newPlanIDs);
+                System.out.println("removed plans:" + removedPlanIDs);
+                System.out.println("updated plans:" + updatedPlanIDs + "\n\n");
+
+                // delete CRDT from removed plans
+                for (String removedID : removedPlanIDs) {
+                    ConsistencyManager.getManager().deleteCRDT(removedID);
+                }
+
+                for (String planID : newPlanIDs) {
+                    // only create those that are not remote plans
+                    if(!planID.matches("(.*)\\([0-9a-f]{2}:[0-9a-f]{2}\\)$")) {
+                        PlanType newPlan = currPlanList.get(planID);
+                        ConsistencyManager.getManager().createCRDT(newPlan.getId(), newPlan, CRDT.CRDTType.PLAN);
+                    }
+                }
+
+                for (String updatedID : updatedPlanIDs) {
+                    PlanType updatedPlan = currPlanList.get(updatedID);
+                    PlanType oldPlan = lastPlanList.get(updatedID);
+                    if(!Arrays.equals(oldPlan.asIMCPlan().payloadMD5(),(updatedPlan.asIMCPlan().payloadMD5()))) {
+                        ConsistencyManager.getManager().updateCRDT(updatedPlan.getId(), updatedPlan);
+                    }
+                }
+
+                /*Set<Map.Entry<String,PlanType>> possibleUpdates = Operations.diff(newPlans,currPlanList.entrySet());
+                Set<Map.Entry<String,PlanType>> updates = new HashSet<>();
+                for (Map.Entry<String,PlanType> possibleUpdate:possibleUpdates) {
+                    PlanType oldPlan = lastPlanList.get(possibleUpdate.getKey());
+                    PlanType currPlan = currPlanList.get(possibleUpdate.getKey());
+                    if(!oldPlan.equals(currPlan)){
+                        updates.add(possibleUpdate);
+                    }
+                }*/
+            }
+            lastPlanList.clear();
+            lastPlanList.putAll(currPlanList);
+//            ::::::::
+        }
+    };
+    ConsistencyManager.ChangeListener planChangeListener = new ConsistencyManager.ChangeListener() {
+        @Override
+        public void change(Object planCRDT) {
+            PlanType newPlan = ((PlanCRDT) planCRDT).payload(getConsole().getMission());
+            getConsole().getMission().addPlan(newPlan);
+            getConsole().getMission().save(true);
+            getConsole().updateMissionListeners();
+        }
+    };
 
     public DataSynchronization(ConsoleLayout console) {
         super(console);
@@ -124,7 +203,7 @@ public class DataSynchronization extends ConsolePanel {
     public static JPanel getTestingPanel() {
         FlowLayout flowLayout = new FlowLayout();
         JPanel panel = new JPanel();
-        panel.setBorder(BorderFactory.createLineBorder(Color.BLACK,2));
+        panel.setBorder(BorderFactory.createLineBorder(Color.BLACK, 2));
         panel.setLayout(flowLayout);
         flowLayout.setAlignment(FlowLayout.LEADING);
 
@@ -162,8 +241,8 @@ public class DataSynchronization extends ConsolePanel {
     @Subscribe
     public void on(Event evtMsg) {
         System.out.println("New Event Msg: " + evtMsg.getTopic());
-            ConsistencyManager.getManager().on(evtMsg);
         if (evtMsg.getSrc() != ImcMsgManager.getManager().getLocalId().intValue()) {
+            ConsistencyManager.getManager().on(evtMsg);
             ElectionManager.getManager().on(evtMsg);
         }
     }
@@ -179,6 +258,8 @@ public class DataSynchronization extends ConsolePanel {
         }
     }
 
+//    ::::::::::::::::::::::::::::::::::::::::: Listeners
+
     private void addDataUpdateListeners() {
         this.getConsole().addMissionListener(missionChangeListener);
         ConsistencyManager.getManager().addPlanListener(planChangeListener);
@@ -188,84 +269,6 @@ public class DataSynchronization extends ConsolePanel {
     public void cleanSubPanel() {
         System.out.println("cleaning subpanel");
     }
-
-//    ::::::::::::::::::::::::::::::::::::::::: Listeners
-
-    MissionChangeListener missionChangeListener = new MissionChangeListener() {
-        private TreeMap<String, PlanType> lastPlanList = null;
-
-        @Override
-        public void missionReplaced(MissionType mission) {
-
-        }
-
-        @Override
-        public void missionUpdated(MissionType mission) {
-            ConsistencyManager manager = ConsistencyManager.getManager();
-            TreeMap<String, PlanType> currPlanList = mission.getIndividualPlansList();
-//            :::::::: Handle plan changes
-            if (lastPlanList == null) {
-                for (Map.Entry<String, PlanType> entry : currPlanList.entrySet()) {
-                    manager.createCRDT(entry.getKey(), entry.getValue(), CRDT.CRDTType.PLAN);
-                }
-                lastPlanList = new TreeMap<>();
-            } else {
-                Set<String> removedPlanIDs = Operations.diff(lastPlanList.keySet(),
-                        currPlanList.keySet());
-                Set<String> newPlanIDs = Operations.diff(currPlanList.keySet(),
-                        lastPlanList.keySet());
-
-                Set<String> updatedPlanIDs = Operations.filteredAndMapped(currPlanList
-                                .entrySet(),
-                        element -> !lastPlanList.entrySet().contains(element) && !newPlanIDs.contains(element.getKey()),
-                        Map.Entry::getKey);
-
-
-                System.out.println("\n\nnew plans:" + newPlanIDs);
-                System.out.println("removed plans:" + removedPlanIDs);
-                System.out.println("updated plans:" + updatedPlanIDs + "\n\n");
-
-                // delete CRDT from removed plans
-                for (String removedID : removedPlanIDs) {
-                    ConsistencyManager.getManager().deleteCRDT(removedID);
-                }
-
-                for (String planID : newPlanIDs) {
-                    PlanType newPlan = currPlanList.get(planID);
-                    ConsistencyManager.getManager().createCRDT(newPlan.getId(), newPlan, CRDT.CRDTType.PLAN);
-                }
-
-                for (String updatedID : updatedPlanIDs) {
-                    PlanType updatedPlan = currPlanList.get(updatedID);
-                    ConsistencyManager.getManager().updateCRDT(updatedPlan.getId(), updatedPlan);
-                }
-
-                /*Set<Map.Entry<String,PlanType>> possibleUpdates = Operations.diff(newPlans,currPlanList.entrySet());
-                Set<Map.Entry<String,PlanType>> updates = new HashSet<>();
-                for (Map.Entry<String,PlanType> possibleUpdate:possibleUpdates) {
-                    PlanType oldPlan = lastPlanList.get(possibleUpdate.getKey());
-                    PlanType currPlan = currPlanList.get(possibleUpdate.getKey());
-                    if(!oldPlan.equals(currPlan)){
-                        updates.add(possibleUpdate);
-                    }
-                }*/
-            }
-            lastPlanList.clear();
-            lastPlanList.putAll(currPlanList);
-//            ::::::::
-        }
-    };
-
-    ConsistencyManager.ChangeListener planChangeListener = new ConsistencyManager.ChangeListener() {
-        @Override
-        public void change(Object planCRDT) {
-            PlanType newPlan = ((PlanCRDT) planCRDT).payload(getConsole().getMission());
-            getConsole().getMission().addPlan(newPlan);
-            getConsole().getMission().save(true);
-            getConsole().updateMissionListeners();
-            getConsole().setPlan(newPlan);
-        }
-    };
 
     @Override
     public void initSubPanel() {

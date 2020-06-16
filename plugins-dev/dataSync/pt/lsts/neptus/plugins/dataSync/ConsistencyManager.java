@@ -142,9 +142,9 @@ public class ConsistencyManager {
             if(!IDToCRDT.containsKey(id)) {
                 CRDT newCRDT = createCRDT(type);
                 newCRDT = newCRDT.updateFromNetwork(crdtData);
-                newCRDT.name = remoteName + "-" + senderID;
+                newCRDT.name = remoteName + "(" + senderID + ")";
                 IDToCRDT.put(id, newCRDT);
-                nameToID.put(remoteName + "-" + senderID, id);
+                nameToID.put(remoteName + "(" + senderID + ")", id);
             } else {
                 CRDT localCRDT = IDToCRDT.get(id);
                 CRDT updatedCRDT = localCRDT.updateFromNetwork(crdtData);
@@ -244,10 +244,10 @@ public class ConsistencyManager {
 
         switch(topic) {
             case "crdt_data":
-                updateFromNetwork(data, new ImcId16(evt.getSrcEnt()));
+                updateFromNetwork(data, new ImcId16(evt.getSrc()));
                 break;
             case "crdt_removed":
-                deleteFromNetwork(data, new ImcId16(evt.getSrcEnt()));
+                deleteFromNetwork(data, new ImcId16(evt.getSrc()));
                 break;
             case "crdt_request":
                 // TODO: analyze requested id's and send local version

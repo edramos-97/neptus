@@ -122,7 +122,7 @@ public class PlanCRDT extends CRDT {
     @Override
     public PlanType payload(Object... params) {
         if (params.length != 1) {
-            throw new IllegalArgumentException("PlanCRDT payload requires a signle non-null MissionType Parameter");
+            throw new IllegalArgumentException("PlanCRDT payload requires a single non-null MissionType Parameter");
         }
         PlanType temp = new PlanType((MissionType) params[0]);
 
