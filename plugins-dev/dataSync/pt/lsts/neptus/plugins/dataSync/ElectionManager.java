@@ -103,103 +103,94 @@ public class ElectionManager {
         String topic = eventMsg.getTopic();
         String data = (String) eventMsg.getValue("data");
         ImcId16 sender = new ImcId16(eventMsg.getSrc());
-//        String data = eventMsg.getData()
         switch (topic) {
             case "leader":
-//                if this is leader send reliable
-                if (!data.equals("")) {
-                    hasLeader = true;
-                    isLeader = false;
-                    leaderId = sender;
-                    setState(ElectionState.ELECTED);
-                    break;
-                }
-                if (isLeader) {
-                    ImcMsgManager.getManager().sendMessage(
-                            new Event("leader", ImcMsgManager.getManager().getLocalId().toPrettyString()),
-                            sender,
-                            null);
-                }
+                onLeader(data, sender);
                 break;
             case "candidate":
-                ImcId16[] activeSystems = ImcMsgManager.getManager().getCommInfo().values().stream()
-                        .filter(SystemImcMsgCommInfo::isActive)
-                        .map(SystemCommBaseInfo::getSystemCommId)
-                        .toArray(ImcId16[]::new);
-                if(data.equals("-1")){
-                    if (state == ElectionState.IDLE) {
-                        ImcMsgManager.getManager().sendMessage(
-                                new Event("accept", data),
-                                sender,
-                                null);
-                        setState(ElectionState.ACCEPTING);
-                        privateExecutor.schedule(() -> {
-                            if (!hasLeader) {
-                                setState(ElectionState.IDLE);
-                            }
-                        }, 9000, TimeUnit.MILLISECONDS);
-                    }
-                } else {
-                    boolean connected = false;
-                    ImcId16 candidateId = new ImcId16(ImcId16.parseImcId16(data));
-                    for (ImcId16 id : activeSystems) {
-                        if (id.equals(candidateId)) {
-                            connected = true;
-                            break;
-                        }
-                    }
-                    if (!connected) {
-                        ImcMsgManager.getManager().sendMessage(
-                                new Event("accept", data),
-                                sender,
-                                null);
-                    }
-                }
+                onCandidate(data,sender);
                 break;
             case "accept":
-                long noActiveSystems = ImcMsgManager.getManager().getCommInfo().values().stream()
-                        .filter(SystemImcMsgCommInfo::isActive)
-                        .count();
-//                long noActiveSystems = ImcSystemsHolder.lookupAllActiveSystems().length;
-                if (++acceptCounter == noActiveSystems) {
-                    isLeader = true;
-                    hasLeader = true;
-                    leaderId = ImcMsgManager.getManager().getLocalId();
-                    setState(ElectionState.ELECTED);
-                    candidateBroadcasting.interrupt();
-                    ImcMsgManager.getManager().sendMessage(new Event("leader",
-                            ImcMsgManager.getManager().getLocalId().toPrettyString()),
-                            ImcId16.BROADCAST_ID,
-                            "Broadcast");
-                }
-//                if same size as network interrupt candidate broadcasting thread
+                onAccept(data, sender);
                 break;
             default:
                 NeptusLog.pub().trace("Unknown message topic received in Election Manager");
         }
     }
 
-    public void updateConnectedSystems() {
-        Collection<SystemImcMsgCommInfo> activeSys = ImcMsgManager.getManager().getCommInfo().values();
-        Stream<SystemImcMsgCommInfo> leaderSys = activeSys.stream()
-                .filter(SystemImcMsgCommInfo::isActive)
-                .filter((sysCommInfo) -> sysCommInfo.getSystemCommId().equals(leaderId));
-        String[] systemNames = activeSys.stream()
-                .filter(SystemImcMsgCommInfo::isActive)
-                .map(SystemImcMsgCommInfo::toString)
-                .toArray(String[]::new);
-        if(leaderId != null && leaderSys.count() < 1){
-            candidateBroadcasting = new CandidateBroadcasting(leaderId.toPrettyString());
-            long randTime = 2000 + new Random().nextLong() % 2000;
-            privateExecutor.schedule(candidateBroadcasting,randTime,TimeUnit.MILLISECONDS);
-            hasLeader = false;
+    // :::::::::::::::::::::::::::::::: Handlers
+    private void onLeader(String data, ImcId16 sender) {
+        if (!data.equals("")) {
+            hasLeader = true;
             isLeader = false;
-            leaderId = null;
-            setState(ElectionState.IDLE);
+            leaderId = sender;
+            setState(ElectionState.ELECTED);
+            return;
         }
-        notifyActiveSystemListeners(systemNames);
+        if (isLeader) {
+            ImcMsgManager.getManager().sendMessage(
+                    new Event("leader", ImcMsgManager.getManager().getLocalId().toPrettyString()),
+                    sender,
+                    null);
+        }
     }
 
+    private void onCandidate(String data, ImcId16 sender) {
+        ImcId16[] activeSystems = ImcMsgManager.getManager().getCommInfo().values().stream()
+                .filter(SystemImcMsgCommInfo::isActive)
+                .map(SystemCommBaseInfo::getSystemCommId)
+                .toArray(ImcId16[]::new);
+        if(data.equals("-1")){
+            if (state == ElectionState.IDLE) {
+                ImcMsgManager.getManager().sendMessage(
+                        new Event("accept", data),
+                        sender,
+                        null);
+                setState(ElectionState.ACCEPTING);
+                privateExecutor.schedule(() -> {
+                    if (!hasLeader) {
+                        setState(ElectionState.IDLE);
+                    }
+                }, 9000, TimeUnit.MILLISECONDS);
+            }
+        } else {
+            boolean connected = false;
+            ImcId16 candidateId = new ImcId16(ImcId16.parseImcId16(data));
+            for (ImcId16 id : activeSystems) {
+                if (id.equals(candidateId)) {
+                    connected = true;
+                    break;
+                }
+            }
+            if (!connected) {
+                ImcMsgManager.getManager().sendMessage(
+                        new Event("accept", data),
+                        sender,
+                        null);
+            }
+        }
+    }
+
+    private void onAccept(String data, ImcId16 sender) {
+        long noActiveSystems = ImcMsgManager.getManager().getCommInfo().values().stream()
+                .filter(SystemImcMsgCommInfo::isActive)
+                .count();
+//                long noActiveSystems = ImcSystemsHolder.lookupAllActiveSystems().length;
+        if (++acceptCounter == noActiveSystems) {
+            isLeader = true;
+            hasLeader = true;
+            leaderId = ImcMsgManager.getManager().getLocalId();
+            setState(ElectionState.ELECTED);
+            candidateBroadcasting.interrupt();
+            ImcMsgManager.getManager().sendMessage(new Event("leader",
+                            ImcMsgManager.getManager().getLocalId().toPrettyString()),
+                    ImcId16.BROADCAST_ID,
+                    "Broadcast");
+        }
+//                if same size as network interrupt candidate broadcasting thread
+    }
+
+    // :::::::::::::::::::::::::::::::: Notification methods
     public void registerActiveSystemListener(Object obj, Method method) {
         systemListeners.add(new Pair<>(obj, method));
     }
@@ -232,6 +223,7 @@ public class ElectionManager {
         }
     }
 
+    // :::::::::::::::::::::::::::::::: Getters/Setters Methods
     private void setState(ElectionState state) {
         this.state = state;
         System.out.println("setting state to:" + state.name());
@@ -244,6 +236,29 @@ public class ElectionManager {
         return this.state.color;
     }
 
+    // :::::::::::::::::::::::::::::::: General Methods
+    public void updateConnectedSystems() {
+        Collection<SystemImcMsgCommInfo> activeSys = ImcMsgManager.getManager().getCommInfo().values();
+        Stream<SystemImcMsgCommInfo> leaderSys = activeSys.stream()
+                .filter(SystemImcMsgCommInfo::isActive)
+                .filter((sysCommInfo) -> sysCommInfo.getSystemCommId().equals(leaderId));
+        String[] systemNames = activeSys.stream()
+                .filter(SystemImcMsgCommInfo::isActive)
+                .map(SystemImcMsgCommInfo::toString)
+                .toArray(String[]::new);
+        if(leaderId != null && leaderSys.count() < 1){
+            candidateBroadcasting = new CandidateBroadcasting(leaderId.toPrettyString());
+            long randTime = 2000 + new Random().nextLong() % 2000;
+            privateExecutor.schedule(candidateBroadcasting,randTime,TimeUnit.MILLISECONDS);
+            hasLeader = false;
+            isLeader = false;
+            leaderId = null;
+            setState(ElectionState.IDLE);
+        }
+        notifyActiveSystemListeners(systemNames);
+    }
+
+    // :::::::::::::::::::::::::::::::: Inner Classes
     enum ElectionState {
         RESET("#40bbff"),
         STARTING("#eeff00"),
