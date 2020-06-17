@@ -261,7 +261,6 @@ public class ConsistencyManager {
     private LinkedHashMap<String, String> parseEventDataString(String dataString) {
         LinkedHashMap<String, String> myDataMap = new LinkedHashMap<>();
         String[] split = dataString.split(";");
-        System.out.println(Arrays.toString(split));
         for (int i = 0; i < split.length-1; i++) {
             String[] split1 = split[i].split("=",2);
             myDataMap.put(split1[0],split1[1]);

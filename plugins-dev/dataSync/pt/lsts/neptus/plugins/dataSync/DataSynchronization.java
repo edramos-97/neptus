@@ -287,7 +287,7 @@ public class DataSynchronization extends ConsolePanel {
 
         addDataUpdateListeners();
 
-//        ElectionManager.getManager().initialize();
+        ElectionManager.getManager().initialize();
         ConsistencyManager.getManager();
         missionChangeListener.missionUpdated(getConsole().getMission());
     }
