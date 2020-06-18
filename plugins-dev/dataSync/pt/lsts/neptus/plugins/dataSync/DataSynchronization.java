@@ -247,7 +247,7 @@ public class DataSynchronization extends ConsolePanel {
         }
     }
 
-    @Periodic(millisBetweenUpdates = 5000)
+    @Periodic(millisBetweenUpdates = 10000)
     public void updateConnectedSystems() {
         ElectionManager.getManager().updateConnectedSystems();
     }

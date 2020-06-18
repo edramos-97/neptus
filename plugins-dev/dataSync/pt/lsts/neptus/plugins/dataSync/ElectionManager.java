@@ -1,5 +1,6 @@
 package pt.lsts.neptus.plugins.dataSync;
 
+import org.apache.commons.lang3.ArrayUtils;
 import pt.lsts.imc.Event;
 import pt.lsts.neptus.NeptusLog;
 import pt.lsts.neptus.comm.manager.SystemCommBaseInfo;
@@ -32,8 +33,8 @@ public class ElectionManager {
     private boolean hasLeader = false;
     private int acceptCounter = 0;
 
-    private volatile LeaderSearch leaderSearch;
-    private volatile CandidateBroadcasting candidateBroadcasting;
+    private volatile PerformElection performElection;
+    private volatile HandleCandidate handleCandidate;
 
     private ElectionManager() {
         this.state = ElectionState.IDLE;
@@ -66,22 +67,22 @@ public class ElectionManager {
      */
     void resetState() {
         initialized = false;
-        if (leaderSearch != null) {
+        if (performElection != null) {
             NeptusLog.pub().debug("ElectionManager is starting when a leader search was already running");
-            leaderSearch.interrupt();
+            performElection.interrupt();
             try {
-                leaderSearch.join(250);
-                leaderSearch = null;
+                performElection.join(250);
+                performElection = null;
             } catch (InterruptedException e) {
                 NeptusLog.pub().debug("ElectionManager state reset interrupted waiting for leader search to join");
             }
         }
-        if (candidateBroadcasting != null) {
+        if (handleCandidate != null) {
             NeptusLog.pub().debug("ElectionManager is starting when a candidate broadcasting was already running");
-            candidateBroadcasting.interrupt();
+            handleCandidate.interrupt();
             try {
-                candidateBroadcasting.join(250);
-                leaderSearch = null;
+                handleCandidate.join(250);
+                performElection = null;
             } catch (InterruptedException e) {
                 NeptusLog.pub()
                         .debug("ElectionManager state reset interrupted waiting for candidate broadcast to join");
@@ -143,50 +144,18 @@ public class ElectionManager {
     }
 
     private void onCandidate(String data, ImcId16 sender) {
-        if (data.equals("-1")) {
-            if (state == ElectionState.IDLE) {
-                ImcMsgManager.getManager().sendMessage(
-                        new Event("accept", data),
-                        sender,
-                        null);
-                setState(ElectionState.ACCEPTING);
-                privateExecutor.schedule(() -> {
-                    if (!hasLeader) {
-                        setState(ElectionState.IDLE);
-                    }
-                }, 9000, TimeUnit.MILLISECONDS);
-            }
-        } else {
-            boolean connected = false;
-            ImcId16 candidateId = new ImcId16(ImcId16.parseImcId16(data));
-            for (ImcId16 id : getActiveSystems()) {
-                if (id.equals(candidateId)) {
-                    connected = true;
-                    break;
-                }
-            }
-            if (!connected) {
-                ImcMsgManager.getManager().sendMessage(
-                        new Event("accept", data),
-                        sender,
-                        null);
-            }
-        }
+        handleCandidate = new HandleCandidate(data, sender);
     }
 
     private void onAccept(String data, ImcId16 sender) {
-        if (++acceptCounter == getActiveSystems().length) {
-            isLeader = true;
-            hasLeader = true;
-            leaderId = ImcMsgManager.getManager().getLocalId();
-            setState(ElectionState.ELECTED);
-            candidateBroadcasting.interrupt();
+        if (++acceptCounter >= getActiveSystems().length/2) {
+            setLeader(ImcMsgManager.getManager().getLocalId());
+            performElection.interrupt();
             ImcMsgManager.getManager().sendMessage(new Event("leader",
                             ImcMsgManager.getManager().getLocalId().toPrettyString()),
                     ImcId16.BROADCAST_ID,
                     "Broadcast");
         }
-//                if same size as network interrupt candidate broadcasting thread
     }
 
     // :::::::::::::::::::::::::::::::: Notification methods
@@ -295,7 +264,8 @@ public class ElectionManager {
                     privateExecutor.submit(new Startup());
                 } else {
                     setLeader(null);
-                    // TODO: submit election thread
+                    performElection = new PerformElection(leaderId.toPrettyString());
+                    privateExecutor.submit(performElection);
                 }
             }
             return;
@@ -303,7 +273,6 @@ public class ElectionManager {
         if(!hasLeader && state == ElectionState.IDLE) {
             privateExecutor.submit(new Startup());
         }
-
     }
 
     // :::::::::::::::::::::::::::::::: Inner Classes
@@ -343,70 +312,66 @@ public class ElectionManager {
         }
     }
 
-    /**
-     * Executed the starting procedure to find an existing leader or begin the election a new one. In case neither
-     * option is possible enter an idle state
-     */
-    private class LeaderSearch extends Thread {
-        @Override
-        public void run() {
-            System.out.println("\n\nStarting leader search\n\n");
-            setState(ElectionState.STARTING);
-//            ask leader
-            ImcMsgManager.getManager().sendMessage(new Event("leader", ""), ImcId16.BROADCAST_ID, "Broadcast");
-//            wait 3 sec
-            try {
-                Thread.sleep(2000);
-
-//            check if has leader and return
-                if (hasLeader) {
-                    return;
-                }
-
-//            check if there are other node in the network
-                switch (getActiveSystems().length) {
-                    case 0:
-                        setState(ElectionState.IDLE);
-                        break;
-                    case 1:
-                        candidateBroadcasting = new CandidateBroadcasting("-1");
-                        privateExecutor.schedule(candidateBroadcasting, 1000, TimeUnit.MILLISECONDS);
-                        break;
-                    default:
-                        privateExecutor.schedule(new LeaderSearch(), 1000, TimeUnit.MILLISECONDS);
-                }
-            } catch (InterruptedException e) {
-                NeptusLog.pub().debug("Leader Search thread was interrupted in Election Manager");
-            }
-        }
-    }
-
-    private class CandidateBroadcasting extends Thread {
+    private class PerformElection extends Thread {
         String candidateId;
 
-        public CandidateBroadcasting(String candidateId) {
+        public PerformElection(String candidateId) {
             super();
             this.candidateId = candidateId;
         }
 
         @Override
         public void run() {
-//            send candidate message
+            SystemImcMsgCommInfo leaderInfo = ImcMsgManager.getManager().getCommInfoById(leaderId);
+            if(state == ElectionState.ACCEPTING) {
+//                Election already underway
+                return;
+            }
+
             setState(ElectionState.CANDIDATE);
             ImcMsgManager.getManager()
                     .sendMessage(new Event("candidate", candidateId), ImcId16.BROADCAST_ID, "Broadcast");
             acceptCounter = 0;
             try {
 //            wait 5sec
-                Thread.sleep(10000);
-                if (!hasLeader && !isLeader) {
-                    privateExecutor.submit(new LeaderSearch());
-                }
+                Thread.sleep(1000);
             } catch (InterruptedException e) {
-                if (!hasLeader && !isLeader)
-                    NeptusLog.pub().debug("Candidate broadcasting thread was interrupted in Election Manager");
+                if (!hasLeader){
+                    NeptusLog.pub().debug("Perform Election thread was interrupted in Election Manager");
+                    setLeader(null);
+                } else {
+                    setState(ElectionState.ELECTED);
+                }
             }
         }
     }
 
+    private class HandleCandidate extends Thread {
+        String candidateId;
+        ImcId16 senderId;
+
+        public HandleCandidate(String candidateId, ImcId16 senderId) {
+            super();
+            this.candidateId = candidateId;
+        }
+
+        @Override
+        public void run() {
+            ImcId16 lostLeaderId = new ImcId16(candidateId);
+            if(!ArrayUtils.contains(getActiveSystems(),lostLeaderId)) {
+                setState(ElectionState.ACCEPTING);
+                ImcMsgManager.getManager()
+                        .sendMessage(new Event("accept", candidateId), senderId, "Broadcast");
+
+                try {
+                    Thread.sleep(1500);
+                    if(hasLeader && state == ElectionState.ACCEPTING) {
+                        setState(ElectionState.ELECTED);
+                    }
+                } catch (InterruptedException e) {
+                    NeptusLog.pub().debug("Candidate broadcasting thread was interrupted in Election Manager");
+                }
+            }
+        }
+    }
 }
