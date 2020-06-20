@@ -7,15 +7,13 @@ import pt.lsts.neptus.comm.manager.SystemCommBaseInfo;
 import pt.lsts.neptus.comm.manager.imc.ImcId16;
 import pt.lsts.neptus.comm.manager.imc.ImcMsgManager;
 import pt.lsts.neptus.comm.manager.imc.SystemImcMsgCommInfo;
-import pt.lsts.neptus.data.Pair;
 
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 public class ElectionManager {
 
@@ -24,10 +22,11 @@ public class ElectionManager {
 
     private static ScheduledExecutorService privateExecutor = Executors.newSingleThreadScheduledExecutor();
 
-    private static LinkedList<Pair<Object, Method>> systemListeners = new LinkedList<>();
-    private static LinkedList<Pair<Object, Method>> stateListeners = new LinkedList<>();
+    private static LinkedList<Consumer<String[]>> systemListeners = new LinkedList<>();
+    private static LinkedList<Consumer<ElectionState>> stateListeners = new LinkedList<>();
 
     private ElectionState state;
+
     private ImcId16 leaderId = null;
     private boolean isLeader = false;
     private boolean hasLeader = false;
@@ -159,35 +158,23 @@ public class ElectionManager {
     }
 
     // :::::::::::::::::::::::::::::::: Notification methods
-    public void registerActiveSystemListener(Object obj, Method method) {
-        systemListeners.add(new Pair<>(obj, method));
+    public void registerActiveSystemListener(Consumer<String[]> method) {
+        systemListeners.add(method);
     }
 
     private void notifyActiveSystemListeners(String[] activeSystemNames) {
-        for (Pair<Object, Method> pair : systemListeners) {
-            try {
-                pair.second().invoke(pair.first(), activeSystemNames);
-            } catch (IllegalAccessException e) {
-                e.printStackTrace();
-            } catch (InvocationTargetException e) {
-                e.printStackTrace();
-            }
+        for (Consumer<String[]> consumer : systemListeners) {
+                consumer.accept(activeSystemNames);
         }
     }
 
-    public void registerStateListener(Object obj, Method method) {
-        systemListeners.add(new Pair<>(obj, method));
+    public void registerStateListener(Consumer<ElectionState> method) {
+        stateListeners.add(method);
     }
 
     private void notifyStateListeners(ElectionState newState) {
-        for (Pair<Object, Method> pair : stateListeners) {
-            try {
-                pair.second().invoke(pair.first(), newState);
-            } catch (IllegalAccessException e) {
-                e.printStackTrace();
-            } catch (InvocationTargetException e) {
-                e.printStackTrace();
-            }
+        for (Consumer<ElectionState> stateListener : stateListeners) {
+            stateListener.accept(newState);
         }
     }
 
@@ -227,25 +214,12 @@ public class ElectionManager {
                 .toArray(ImcId16[]::new);
     }
 
+    public ImcId16 getLeaderId() {
+        return leaderId;
+    }
+
     // :::::::::::::::::::::::::::::::: General Methods
     public void updateConnectedSystems() {
-//        Collection<SystemImcMsgCommInfo> activeSys = ImcMsgManager.getManager().getCommInfo().values();
-//        Stream<SystemImcMsgCommInfo> leaderSys = activeSys.stream()
-//                .filter(SystemImcMsgCommInfo::isActive)
-//                .filter((sysCommInfo) -> sysCommInfo.getSystemCommId().equals(leaderId));
-//        String[] systemNames = activeSys.stream()
-//                .filter(SystemImcMsgCommInfo::isActive)
-//                .map(SystemImcMsgCommInfo::toString)
-//                .toArray(String[]::new);
-//        if (leaderId != null && leaderSys.count() < 1) {
-//            candidateBroadcasting = new CandidateBroadcasting(leaderId.toPrettyString());
-//            long randTime = 2000 + new Random().nextLong() % 2000;
-//            privateExecutor.schedule(candidateBroadcasting, randTime, TimeUnit.MILLISECONDS);
-//            hasLeader = false;
-//            isLeader = false;
-//            leaderId = null;
-//            setState(ElectionState.IDLE);
-//        }
         if(!initialized) {
             return;
         }

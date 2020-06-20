@@ -1,21 +1,27 @@
 package pt.lsts.neptus.plugins.dataSync;
 
 import pt.lsts.imc.Event;
-import pt.lsts.imc.IMCDefinition;
 import pt.lsts.neptus.NeptusLog;
 import pt.lsts.neptus.comm.manager.imc.ImcId16;
 import pt.lsts.neptus.comm.manager.imc.ImcMsgManager;
 import pt.lsts.neptus.comm.transports.ImcTcpTransport;
 import pt.lsts.neptus.plugins.dataSync.CRDTs.*;
 import pt.lsts.neptus.types.mission.plan.PlanType;
-import pt.lsts.neptus.util.conf.GeneralPreferences;
 
 import java.net.InetAddress;
 import java.util.*;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class ConsistencyManager {
 
     private static ConsistencyManager consistencyManager = null;
+
+    private boolean loadedComplete = false;
+
+    private static ScheduledExecutorService privateExecutor = Executors.newSingleThreadScheduledExecutor();
 
     HashMap<String, UUID> removedNameToID = new HashMap<>();
     HashMap<String, UUID> nameToID = new HashMap<>();
@@ -24,7 +30,6 @@ public class ConsistencyManager {
     ImcTcpTransport tcpTransport;
 
     HashMap<String,InetAddress> wellKnownPeers = new HashMap<>();
-    Set<InetAddress> activeConnections = new HashSet<>();
 
     Vector<ChangeListener> planListeners = new Vector<>();
 
@@ -49,7 +54,11 @@ public class ConsistencyManager {
         return consistencyManager;
     }
 
-//    ::::::::::::::::::::::::::::::::::::::::: CRDT-CRUD operations
+    public void setLoadedComplete(boolean loadedComplete) {
+        this.loadedComplete = loadedComplete;
+    }
+
+    //    ::::::::::::::::::::::::::::::::::::::::: CRDT-CRUD operations
 
     // CREATE
     public <K,V> UUID createCRDT(String name, Map<K,V> dataObject, CRDT.CRDTType crdtType) {
@@ -97,7 +106,9 @@ public class ConsistencyManager {
         nameToID.put(name,newID);
         IDToCRDT.put(newID, crdtObject);
 
-        shareLocal(name,newID,crdtObject);
+        if(loadedComplete) {
+            shareLocal(name,newID,crdtObject);
+        }
 
         return newID;
     }
@@ -184,6 +195,71 @@ public class ConsistencyManager {
         return IDToCRDT.get(id);
     }
 
+    // REQUESTS
+    private String buildDataRequest(boolean requestAllData) {
+        if(requestAllData) {
+            return "all";
+        }
+        StringBuilder stringBuilder = new StringBuilder();
+        for (String s : nameToID.keySet()) {
+            if(s.matches("(.*)\\(([0-9a-f]{2}:[0-9a-f]{2})\\)$")) {
+                stringBuilder.append(s);
+            } else {
+                ImcId16 localId = ImcMsgManager.getManager().getLocalId();
+                stringBuilder.append(s).append("(").append(localId.toPrettyString()).append(")");
+            }
+            stringBuilder.append(";");
+        }
+        return stringBuilder.toString();
+    }
+
+    private void handleDataRequest(LinkedHashMap<String,?> data, ImcId16 src) {
+        String namesList = (String) data.get("listOfNames");
+        List<String> split = Arrays.asList(namesList.split(";"));
+        if(split.contains("all")) {
+            answerFullDataRequest(src);
+            return;
+        }
+        for (String requestEntry : split) {
+            Pattern r = Pattern.compile("(.*)\\(([0-9a-f]{2}:[0-9a-f]{2})\\)$");
+            Matcher m = r.matcher(requestEntry);
+            if(m.matches()) {
+                ImcId16 entryID = new ImcId16(m.group(2));
+                String localName;
+                if(entryID.equals(ImcMsgManager.getManager().getLocalId())) {
+                    localName = m.group(1);
+                } else {
+                    localName = requestEntry;
+                }
+                UUID id = nameToID.get(localName);
+                CRDT crdt = IDToCRDT.get(id);
+                shareIndividual(localName,id,crdt,src);
+            }
+        }
+    }
+
+    private void answerFullDataRequest(ImcId16 src) {
+        for (Map.Entry<String, UUID> crdtNameEntry : nameToID.entrySet()) {
+            UUID id = crdtNameEntry.getValue();
+            CRDT crdt = IDToCRDT.get(id);
+            shareIndividual(crdtNameEntry.getKey(),id,crdt,src);
+        }
+    }
+
+    public void synchronizeLocalData(ImcId16 leader) {
+        LinkedHashMap<String, String> data = new LinkedHashMap<>();
+        data.put("list", buildDataRequest(false));
+
+        Event evtMsg = new Event("crdt_request", "placeholder");
+
+        evtMsg.setData(data);
+
+        System.out.println("\n\n\n SENT LOCAL DATA REQUEST MESSAGE");
+        System.out.println(evtMsg);
+
+        ImcMsgManager.getManager().sendMessage(evtMsg, leader, "Broadcast");
+    }
+
     private void notifyCRDTChanges(UUID id) {
         CRDT crdt = IDToCRDT.get(id);
         System.out.println("\nNotified changes on id:" + id + "\n");
@@ -212,19 +288,26 @@ public class ConsistencyManager {
     private void shareLocal(String localName, UUID id, CRDT crdtData) {
         LinkedHashMap<String,?> data = crdtData.toLinkedHashMap(localName, id);
 
-        /*LinkedHashMap<String, String> data = new LinkedHashMap<>();
+        Event evtMsg = new Event("crdt_data", "placeholder");
 
-        data.put("key","value");
-        data.put("key2","value2");*/
+        evtMsg.setData(data);
+
+        System.out.println("\n\n\n SENT LOCAL UPDATE MESSAGE");
+        System.out.println(evtMsg);
+
+        ImcMsgManager.getManager().sendMessage(evtMsg, ImcId16.BROADCAST_ID, "Broadcast");
+    }
+
+    private void shareIndividual(String localName, UUID id, CRDT crdtData, ImcId16 dest) {
+        LinkedHashMap<String,?> data = crdtData.toLinkedHashMap(localName, id);
 
         Event evtMsg = new Event("crdt_data", "placeholder");
 
         evtMsg.setData(data);
 
-        System.out.println("\n\n\n MY PLAN CRDT MSG");
-        System.out.println(evtMsg);
+        System.out.println("\n\n\n SENT INDIVIDUAL MESSAGE");
 
-        ImcMsgManager.getManager().sendMessage(evtMsg, ImcId16.BROADCAST_ID, "Broadcast");
+        ImcMsgManager.getManager().sendMessage(evtMsg, dest,"");
     }
 
     private void deleteLocal (UUID id) {
@@ -250,14 +333,14 @@ public class ConsistencyManager {
                 deleteFromNetwork(data, new ImcId16(evt.getSrc()));
                 break;
             case "crdt_request":
-                // TODO: analyze requested id's and send local version
+                handleDataRequest(data, new ImcId16(evt.getSrc()));
                 break;
             default:
                 NeptusLog.pub().trace("Unknown topic received in consistency manager: " + topic);
         }
     }
 
-//    ::::::::::::::::::::::::::::::::::::::::: Other
+    //    ::::::::::::::::::::::::::::::::::::::::: Other
     private LinkedHashMap<String, String> parseEventDataString(String dataString) {
         LinkedHashMap<String, String> myDataMap = new LinkedHashMap<>();
         String[] split = dataString.split(";");
@@ -266,28 +349,6 @@ public class ConsistencyManager {
             myDataMap.put(split1[0],split1[1]);
         }
         return myDataMap;
-    }
-
-    public void createTcpTransport() {
-        int localport = GeneralPreferences.commsLocalPortTCP;
-
-        if (tcpTransport == null) {
-            tcpTransport = new ImcTcpTransport(localport, IMCDefinition.getInstance());
-        }
-        else {
-            tcpTransport.setBindPort(localport);
-        }
-        tcpTransport.reStart();
-
-        if (tcpTransport.isOnBindError()) {
-            for (int i = 1; i < 10; i++) {
-                tcpTransport.stop();
-                tcpTransport.setBindPort(localport + i);
-                tcpTransport.reStart();
-                if (!tcpTransport.isOnBindError())
-                    break;
-            }
-        }
     }
 
     public static void main(String[] args) {

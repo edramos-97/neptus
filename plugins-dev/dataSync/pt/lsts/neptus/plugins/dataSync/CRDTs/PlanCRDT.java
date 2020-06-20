@@ -238,16 +238,16 @@ public class PlanCRDT extends CRDT {
             put("name", localName);
             put("type", CRDTType.PLAN.name());
             HashMap<String, ?> vertexMap = vertex.toLinkedHashMap(null, null, "maneuver");
-            Set<PlanManeuver> msg_set_man = (Set<PlanManeuver>) vertexMap.get("msg_set");
+            Set<PlanManeuver> maneuverMsgSet = (Set<PlanManeuver>) vertexMap.get("msg_set");
             vertexMap.remove("msg_set");
             put("vertex", vertexMap);
             HashMap<String, ?> edgeMap = edge.toLinkedHashMap(null, null, "transitionType");
-            Set<PlanTransition> msg_set_trans = (Set<PlanTransition>) edgeMap.get("msg_set");
+            Set<PlanTransition> transitionMsgSet = (Set<PlanTransition>) edgeMap.get("msg_set");
             edgeMap.remove("msg_set");
             put("edge", edgeMap);
             PlanSpecification planSpec = new PlanSpecification(localName, "", null, Collections
-                    .emptySet(), initialManeuverID, new ArrayList<>(msg_set_man),
-                    new ArrayList<>(msg_set_trans), Collections.emptySet(), Collections.emptySet());
+                    .emptySet(), initialManeuverID, new ArrayList<>(maneuverMsgSet),
+                    new ArrayList<>(transitionMsgSet), Collections.emptySet(), Collections.emptySet());
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             IMCOutputStream imcOs = new IMCOutputStream(baos);
             try {

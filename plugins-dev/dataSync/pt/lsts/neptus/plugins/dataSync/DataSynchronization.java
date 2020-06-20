@@ -68,7 +68,9 @@ import java.util.TreeMap;
 public class DataSynchronization extends ConsolePanel {
 
     // Interface Components
-    static JList<String> connectedSystems = null;
+    private static JList<String> connectedSystems = null;
+    private static JLabel localState = null;
+
     MissionChangeListener missionChangeListener = new MissionChangeListener() {
         private TreeMap<String, PlanType> lastPlanList = null;
 
@@ -87,6 +89,7 @@ public class DataSynchronization extends ConsolePanel {
                     manager.createCRDT(entry.getKey(), entry.getValue(), CRDT.CRDTType.PLAN);
                 }
                 lastPlanList = new TreeMap<>();
+                ConsistencyManager.getManager().setLoadedComplete(true);
             } else {
                 Set<String> removedPlanIDs = Operations.diff(lastPlanList.keySet(),
                         currPlanList.keySet());
@@ -159,7 +162,7 @@ public class DataSynchronization extends ConsolePanel {
         statusPanel.setBorder(new EmptyBorder(10, 10, 10, 10));
 
         JLabel label1 = new JLabel("Local Network State");
-        JLabel localState = new JLabel("IDLE");
+        localState = new JLabel("IDLE");
         localState.setOpaque(true);
         localState.setMaximumSize(new Dimension(Short.MAX_VALUE, localState.getMaximumSize().height * 5));
         localState.setHorizontalAlignment(SwingConstants.CENTER);
@@ -252,17 +255,30 @@ public class DataSynchronization extends ConsolePanel {
         ElectionManager.getManager().updateConnectedSystems();
     }
 
-    void updateConnectedSystems(String[] systemNames) {
+//    ::::::::::::::::::::::::::::::::::::::::: Listeners
+
+    private void registerListeners() {
+        this.getConsole().addMissionListener(missionChangeListener);
+        ConsistencyManager.getManager().addPlanListener(planChangeListener);
+        ElectionManager.getManager().registerActiveSystemListener(DataSynchronization::
+        updateConnectedSystemsInterface);
+        ElectionManager.getManager().registerStateListener(DataSynchronization::updateLocalNetworkState);
+    }
+
+    public static void updateConnectedSystemsInterface(String[] systemNames) {
         if (connectedSystems != null) {
             connectedSystems.setListData(systemNames);
         }
     }
 
-//    ::::::::::::::::::::::::::::::::::::::::: Listeners
-
-    private void addDataUpdateListeners() {
-        this.getConsole().addMissionListener(missionChangeListener);
-        ConsistencyManager.getManager().addPlanListener(planChangeListener);
+    public static void updateLocalNetworkState(ElectionManager.ElectionState state) {
+        if (localState != null) {
+            localState.setText(state.name());
+            localState.setBackground(Color.decode(ElectionManager.getManager().getStateColor()));
+        }
+        if(state.equals(ElectionManager.ElectionState.ELECTED)) {
+            ConsistencyManager.getManager().synchronizeLocalData(ElectionManager.getManager().getLeaderId());
+        }
     }
 
     @Override
@@ -285,7 +301,7 @@ public class DataSynchronization extends ConsolePanel {
 
         add(tabsPane, BorderLayout.CENTER);
 
-        addDataUpdateListeners();
+        registerListeners();
 
         ElectionManager.getManager().initialize();
         ConsistencyManager.getManager();
