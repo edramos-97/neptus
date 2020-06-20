@@ -153,9 +153,21 @@ public class ConsistencyManager {
             if(!IDToCRDT.containsKey(id)) {
                 CRDT newCRDT = createCRDT(type);
                 newCRDT = newCRDT.updateFromNetwork(crdtData);
-                newCRDT.name = remoteName + "(" + senderID + ")";
+                String name = "";
+                Pattern r = Pattern.compile("(.*)\\(([0-9a-f]{2}:[0-9a-f]{2})\\)$");
+                Matcher m = r.matcher(remoteName);
+                if(m.matches()){
+                    ImcId16 remoteID = new ImcId16(m.group(2));
+                    if(remoteID.equals(ImcMsgManager.getManager().getLocalId())) {
+                        name = m.group(1);
+                    } else {
+                        name = remoteName;
+                    }
+                } else {
+                    name = remoteName + "(" +senderID + ")";
+                }
                 IDToCRDT.put(id, newCRDT);
-                nameToID.put(remoteName + "(" + senderID + ")", id);
+                nameToID.put(name, id);
             } else {
                 CRDT localCRDT = IDToCRDT.get(id);
                 CRDT updatedCRDT = localCRDT.updateFromNetwork(crdtData);
@@ -208,14 +220,19 @@ public class ConsistencyManager {
                 ImcId16 localId = ImcMsgManager.getManager().getLocalId();
                 stringBuilder.append(s).append("(").append(localId.toPrettyString()).append(")");
             }
-            stringBuilder.append(";");
+            stringBuilder.append(",");
         }
-        return stringBuilder.toString();
+        if(stringBuilder.length() > 0){
+            return stringBuilder.substring(0,stringBuilder.length()-1);
+        } else {
+            return stringBuilder.toString();
+        }
     }
 
     private void handleDataRequest(LinkedHashMap<String,?> data, ImcId16 src) {
         String namesList = (String) data.get("listOfNames");
-        List<String> split = Arrays.asList(namesList.split(";"));
+        boolean requestBack = Boolean.parseBoolean((String) data.get("requestBack"));
+        List<String> split = Arrays.asList(namesList.split(","));
         if(split.contains("all")) {
             answerFullDataRequest(src);
             return;
@@ -232,9 +249,14 @@ public class ConsistencyManager {
                     localName = requestEntry;
                 }
                 UUID id = nameToID.get(localName);
-                CRDT crdt = IDToCRDT.get(id);
-                shareIndividual(localName,id,crdt,src);
+                if(id != null) {
+                    CRDT crdt = IDToCRDT.get(id);
+                    shareIndividual(localName,id,crdt,src);
+                }
             }
+        }
+        if(requestBack) {
+            synchronizeLocalData(src,false,true);
         }
     }
 
@@ -246,9 +268,10 @@ public class ConsistencyManager {
         }
     }
 
-    public void synchronizeLocalData(ImcId16 leader) {
+    public void synchronizeLocalData(ImcId16 destination, boolean requestBack, boolean requestAllData) {
         LinkedHashMap<String, String> data = new LinkedHashMap<>();
-        data.put("list", buildDataRequest(false));
+        data.put("listOfNames", buildDataRequest(requestAllData));
+        data.put("requestBack", String.valueOf(requestBack));
 
         Event evtMsg = new Event("crdt_request", "placeholder");
 
@@ -257,7 +280,7 @@ public class ConsistencyManager {
         System.out.println("\n\n\n SENT LOCAL DATA REQUEST MESSAGE");
         System.out.println(evtMsg);
 
-        ImcMsgManager.getManager().sendMessage(evtMsg, leader, "Broadcast");
+        ImcMsgManager.getManager().sendMessage(evtMsg, destination, "");
     }
 
     private void notifyCRDTChanges(UUID id) {

@@ -244,7 +244,7 @@ public class ElectionManager {
             }
             return;
         }
-        if(!hasLeader && state == ElectionState.IDLE) {
+        if(!hasLeader && (state == ElectionState.IDLE || state == ElectionState.STARTING)){
             privateExecutor.submit(new Startup());
         }
     }

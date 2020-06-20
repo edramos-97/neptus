@@ -277,7 +277,7 @@ public class DataSynchronization extends ConsolePanel {
             localState.setBackground(Color.decode(ElectionManager.getManager().getStateColor()));
         }
         if(state.equals(ElectionManager.ElectionState.ELECTED)) {
-            ConsistencyManager.getManager().synchronizeLocalData(ElectionManager.getManager().getLeaderId());
+            ConsistencyManager.getManager().synchronizeLocalData(ElectionManager.getManager().getLeaderId(), true,true);
         }
     }
 
