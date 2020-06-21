@@ -98,6 +98,9 @@ public class ElectionManager {
     }
 
     public void on(Event eventMsg) {
+        if(!initialized) {
+            return;
+        }
         String topic = eventMsg.getTopic();
         String data = (String) eventMsg.getValue("data");
         ImcId16 sender = new ImcId16(eventMsg.getSrc());
@@ -119,11 +122,18 @@ public class ElectionManager {
     // :::::::::::::::::::::::::::::::: Handlers
     private void onLeader(String data, ImcId16 sender) {
         if(data.equals("")){
+            if(sender.equals(leaderId)) {
+                ImcMsgManager.getManager().sendMessage(
+                        new Event("leader", leaderId.toPrettyString()),
+                        sender,
+                        null);
+            }
             if (isLeader) {
                 ImcMsgManager.getManager().sendMessage(
                         new Event("leader", ImcMsgManager.getManager().getLocalId().toPrettyString()),
                         sender,
                         null);
+                return;
             }
             if(!hasLeader) {
                 ImcMsgManager.getManager().sendMessage(

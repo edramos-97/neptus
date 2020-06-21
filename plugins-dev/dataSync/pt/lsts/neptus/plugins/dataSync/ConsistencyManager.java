@@ -166,6 +166,7 @@ public class ConsistencyManager {
                 } else {
                     name = remoteName + "(" +senderID + ")";
                 }
+                newCRDT.setName(name);
                 IDToCRDT.put(id, newCRDT);
                 nameToID.put(name, id);
             } else {
@@ -235,23 +236,23 @@ public class ConsistencyManager {
         List<String> split = Arrays.asList(namesList.split(","));
         if(split.contains("all")) {
             answerFullDataRequest(src);
-            return;
-        }
-        for (String requestEntry : split) {
-            Pattern r = Pattern.compile("(.*)\\(([0-9a-f]{2}:[0-9a-f]{2})\\)$");
-            Matcher m = r.matcher(requestEntry);
-            if(m.matches()) {
-                ImcId16 entryID = new ImcId16(m.group(2));
-                String localName;
-                if(entryID.equals(ImcMsgManager.getManager().getLocalId())) {
-                    localName = m.group(1);
-                } else {
-                    localName = requestEntry;
-                }
-                UUID id = nameToID.get(localName);
-                if(id != null) {
-                    CRDT crdt = IDToCRDT.get(id);
-                    shareIndividual(localName,id,crdt,src);
+        } else {
+            for (String requestEntry : split) {
+                Pattern r = Pattern.compile("(.*)\\(([0-9a-f]{2}:[0-9a-f]{2})\\)$");
+                Matcher m = r.matcher(requestEntry);
+                if(m.matches()) {
+                    ImcId16 entryID = new ImcId16(m.group(2));
+                    String localName;
+                    if(entryID.equals(ImcMsgManager.getManager().getLocalId())) {
+                        localName = m.group(1);
+                    } else {
+                        localName = requestEntry;
+                    }
+                    UUID id = nameToID.get(localName);
+                    if(id != null) {
+                        CRDT crdt = IDToCRDT.get(id);
+                        shareIndividual(localName,id,crdt,src);
+                    }
                 }
             }
         }

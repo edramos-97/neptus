@@ -244,9 +244,13 @@ public class DataSynchronization extends ConsolePanel {
     @Subscribe
     public void on(Event evtMsg) {
         System.out.println("New Event Msg: " + evtMsg.getTopic());
-        if (evtMsg.getSrc() != ImcMsgManager.getManager().getLocalId().intValue()) {
-            ConsistencyManager.getManager().on(evtMsg);
-            ElectionManager.getManager().on(evtMsg);
+        try {
+            if (evtMsg.getSrc() != ImcMsgManager.getManager().getLocalId().intValue()) {
+                ConsistencyManager.getManager().on(evtMsg);
+                ElectionManager.getManager().on(evtMsg);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
         }
     }
 
@@ -276,8 +280,9 @@ public class DataSynchronization extends ConsolePanel {
             localState.setText(state.name());
             localState.setBackground(Color.decode(ElectionManager.getManager().getStateColor()));
         }
-        if(state.equals(ElectionManager.ElectionState.ELECTED)) {
-            ConsistencyManager.getManager().synchronizeLocalData(ElectionManager.getManager().getLeaderId(), true,true);
+        ImcId16 leaderId = ElectionManager.getManager().getLeaderId();
+        if(state.equals(ElectionManager.ElectionState.ELECTED) && !leaderId.equals(ImcMsgManager.getManager().getLocalId())) {
+            ConsistencyManager.getManager().synchronizeLocalData(leaderId, true,true);
         }
     }
 
