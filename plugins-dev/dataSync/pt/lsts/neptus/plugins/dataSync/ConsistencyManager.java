@@ -136,6 +136,11 @@ public class ConsistencyManager {
     // UPDATE
     public UUID updateCRDT(String name, Object dataObject) {
 //        TODO: verify name existence
+        if(removedNameToID.containsKey(name)) {
+            NeptusLog.pub().warn("Unable to update local CRDT with name: " + name + "because it's already been " +
+                                  "deleted");
+            return null;
+        }
         UUID crdtID = nameToID.get(name);
         NeptusLog.pub().debug("Local update to CRDT object with id: " + crdtID);
         CRDT oldCRDT = IDToCRDT.get(crdtID);
@@ -191,13 +196,13 @@ public class ConsistencyManager {
     public UUID deleteCRDT(String name) {
         UUID removedUUID= nameToID.remove(name);
         removedNameToID.put(name, removedUUID);
+        notifyCRDTListeners(removedUUID,null,true);
+        deleteLocal(removedUUID);
         return removedUUID;
     }
 
     public void deleteFromNetwork(LinkedHashMap<String,?> crdtData, ImcId16 sender) {
         UUID id = UUID.fromString((String)crdtData.get("id"));
-
-        IDToCRDT.remove(id);
 
         nameToID.entrySet().removeIf(new Predicate<Map.Entry<String, UUID>>() {
             @Override
@@ -205,6 +210,8 @@ public class ConsistencyManager {
                 return id.equals(entry.getValue());
             }
         });
+        removedNameToID.put((String) crdtData.get("name"),id);
+        notifyCRDTListeners(id,null,false);
     }
 
     // READ
@@ -295,14 +302,17 @@ public class ConsistencyManager {
     }
 
     private void notifyCRDTListeners(UUID id, ImcId16 origin, boolean local) {
-        CRDT crdt = IDToCRDT.get(id);
+        CRDT crdt = null;
+        if(!removedNameToID.containsValue(id)) {
+            crdt = IDToCRDT.get(id);
+        }
         System.out.println("\nNotified changes on id:" + id + "\n");
         if(origin == null) {
             origin = ImcMsgManager.getManager().getLocalId();
         }
 
         for (CRDTChangeListener crdtListener : crdtListeners) {
-            crdtListener.change(id, crdt, origin, crdt.getTrueName());
+            crdtListener.change(id, crdt, origin, crdt==null ? "" : crdt.getTrueName());
         }
 
         if (local) {

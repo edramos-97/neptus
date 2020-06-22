@@ -54,6 +54,8 @@ import pt.lsts.neptus.util.GuiUtils;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.LineBorder;
+import javax.swing.event.PopupMenuEvent;
+import javax.swing.event.PopupMenuListener;
 import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.TableCellRenderer;
@@ -179,8 +181,12 @@ public class DataSynchronization extends ConsolePanel {
             if(removedRow != -1) {
                 model.removeRow(removedRow);
             }
+
+            // data is null if operation being notified was a delete
+            if(newData != null) {
 //            "Name","Original System","Last Update", "ID"
-            model.addRow(new Object[]{origName,origSystem, Date.from(Instant.now()),id});
+                model.addRow(new Object[]{origName,origSystem, Date.from(Instant.now()),id});
+            }
             model.fireTableDataChanged();
         }
     };
@@ -318,16 +324,66 @@ public class DataSynchronization extends ConsolePanel {
     }
 
     private static JPopupMenu getCRDTOptionsMenu() {
+        int rowAtPoint;
         final JPopupMenu popupMenu = new JPopupMenu();
         JMenuItem saveAsLocal = new JMenuItem("Save as Local");
         saveAsLocal.addActionListener(new ActionListener() {
-
             @Override
             public void actionPerformed(ActionEvent e) {
-                JOptionPane.showMessageDialog(JOptionPane.getRootFrame(), "Saved as local variable");
+                DefaultTableModel model = (DefaultTableModel) crdtTable.getModel();
+                Vector o = (Vector) model.getDataVector().get(crdtTable.getSelectedRow());
+
+                UUID id = (UUID) o.get(model.findColumn("ID"));
+
+                JOptionPane.showMessageDialog(JOptionPane.getRootFrame(), String
+                        .format("Saved id:%s as local variable", id.toString()));
+            }
+        });
+
+        JMenuItem deleteItem = new JMenuItem("Delete");
+        deleteItem.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                DefaultTableModel model = (DefaultTableModel) crdtTable.getModel();
+                Vector o = (Vector) model.getDataVector().get(crdtTable.getSelectedRow());
+
+                ImcId16 originalSystem = (ImcId16) o.get(model.findColumn("Original System"));
+                String name = (String) o.get(model.findColumn("Name"));
+
+                if(originalSystem.equals(ImcMsgManager.getManager().getLocalId())) {
+                    ConsistencyManager.getManager().deleteCRDT(name);
+                } else {
+                    ConsistencyManager.getManager().deleteCRDT(name + "(" + originalSystem.toPrettyString() + ")");
+                }
             }
         });
         popupMenu.add(saveAsLocal);
+        popupMenu.add(deleteItem);
+
+        popupMenu.addPopupMenuListener(new PopupMenuListener() {
+            @Override
+            public void popupMenuWillBecomeVisible(PopupMenuEvent e) {
+                SwingUtilities.invokeLater(new Runnable() {
+                    @Override
+                    public void run() {
+                        int rowAtPoint = crdtTable.rowAtPoint(SwingUtilities.convertPoint(popupMenu, new Point(0, 0),
+                                crdtTable));
+                        if (rowAtPoint > -1) {
+                            crdtTable.setRowSelectionInterval(rowAtPoint, rowAtPoint);
+                        }
+                    }
+                });
+            }
+            @Override
+            public void popupMenuWillBecomeInvisible(PopupMenuEvent e) {
+                // TODO Auto-generated method stub
+            }
+            @Override
+            public void popupMenuCanceled(PopupMenuEvent e) {
+                // TODO Auto-generated method stub
+            }
+        });
+
         return popupMenu;
     }
 
