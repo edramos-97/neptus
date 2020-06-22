@@ -4,7 +4,6 @@ import pt.lsts.imc.Event;
 import pt.lsts.neptus.NeptusLog;
 import pt.lsts.neptus.comm.manager.imc.ImcId16;
 import pt.lsts.neptus.comm.manager.imc.ImcMsgManager;
-import pt.lsts.neptus.comm.transports.ImcTcpTransport;
 import pt.lsts.neptus.plugins.dataSync.CRDTs.*;
 import pt.lsts.neptus.types.mission.plan.PlanType;
 
@@ -28,9 +27,11 @@ public class ConsistencyManager {
     HashMap<String, UUID> nameToID = new HashMap<>();
     HashMap<UUID, CRDT> IDToCRDT = new HashMap<>();
 
-    ImcTcpTransport tcpTransport;
 
-    HashMap<String,InetAddress> wellKnownPeers = new HashMap<>();
+    Set<InetAddress> wellKnownPeers = new HashSet<>();
+
+    HashMap<String, Boolean> shareWideArea = new LinkedHashMap<>();
+
 
     Vector<CRDTChangeListener> crdtListeners = new Vector<>();
     Vector<PlanChangeListener> planListeners = new Vector<>();
@@ -58,6 +59,10 @@ public class ConsistencyManager {
 
     public void setLoadedComplete(boolean loadedComplete) {
         this.loadedComplete = loadedComplete;
+    }
+
+    public void setShareWideAreaEntry(String type, boolean sync) {
+        shareWideArea.put(type,sync);
     }
 
     //    ::::::::::::::::::::::::::::::::::::::::: CRDT-CRUD operations
@@ -334,6 +339,10 @@ public class ConsistencyManager {
         for (PlanChangeListener listener: planListeners) {
             listener.change(plan);
         }
+    }
+
+    public void wideAreaSystemsChange(Collection<InetAddress> addresses) {
+        wellKnownPeers.addAll(addresses);
     }
 
 //    ::::::::::::::::::::::::::::::::::::::::: Msg Senders

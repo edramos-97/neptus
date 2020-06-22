@@ -40,6 +40,8 @@ import pt.lsts.neptus.comm.manager.imc.ImcMsgManager;
 import pt.lsts.neptus.console.ConsoleLayout;
 import pt.lsts.neptus.console.ConsolePanel;
 import pt.lsts.neptus.console.plugins.MissionChangeListener;
+import pt.lsts.neptus.plugins.ConfigurationListener;
+import pt.lsts.neptus.plugins.NeptusProperty;
 import pt.lsts.neptus.plugins.PluginDescription;
 import pt.lsts.neptus.plugins.Popup;
 import pt.lsts.neptus.plugins.Popup.POSITION;
@@ -62,6 +64,9 @@ import javax.swing.table.TableCellRenderer;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.net.Inet4Address;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.text.DateFormat;
 import java.time.Instant;
 import java.util.*;
@@ -73,7 +78,22 @@ import java.util.*;
 @PluginDescription(name = "Automated Data Synchronization", description = "Options for automated data sharing between" +
                                                                           " CCUs and vehicles")
 @Popup(pos = POSITION.RIGHT, width = 800, height = 600)
-public class DataSynchronization extends ConsolePanel {
+public class DataSynchronization extends ConsolePanel implements ConfigurationListener {
+
+    @NeptusProperty(name = "List of well-known systems", category = "Wide-area connections", userLevel =
+            NeptusProperty.LEVEL.ADVANCED,
+            description = "Keeps the addresses of well-known nodes to exchange data with")
+    private String listOfAddresses = "";
+
+    @NeptusProperty(name = "Synchronize Plans Locally", category = "CRDT Sync Options", userLevel =
+            NeptusProperty.LEVEL.ADVANCED,
+            description = "Whether Plans should be synchronized in the local network")
+    private boolean syncPlansLocal = true;
+
+    @NeptusProperty(name = "Synchronize Plans Wide-Area", category = "CRDT Sync Options", userLevel =
+            NeptusProperty.LEVEL.ADVANCED,
+            description = "Whether Plans should be synchronized over wide-area connections")
+    private boolean syncPlansWide = true;
 
     // Interface Components
     private static JList<String> connectedSystems = null;
@@ -270,13 +290,13 @@ public class DataSynchronization extends ConsolePanel {
         return panel;
     }
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws UnknownHostException {
 //        JTabbedPane tabsPane = new JTabbedPane(SwingConstants.TOP);
 //
 //        JSplitPane statusPane = getStatusPanel();
 //        statusPane.setDividerLocation(320);
 //        tabsPane.add("Status", statusPane);
-//        tabsPane.add("tetsing", getTestingPanel());
+//        tabsPane.add("tetsing", getTestingPanel())
 
         GuiUtils.testFrame(getCRDTInfoPanel(), "DataSync", 800, 600);
     }
@@ -414,6 +434,31 @@ public class DataSynchronization extends ConsolePanel {
         ElectionManager.getManager().registerActiveSystemListener(DataSynchronization::
         updateConnectedSystemsInterface);
         ElectionManager.getManager().registerStateListener(DataSynchronization::updateLocalNetworkState);
+    }
+
+    @Override
+    public void propertiesChanged() {
+        if (syncPlansLocal) {
+            getConsole().addMissionListener(missionChangeListener);
+        } else {
+            getConsole().removeMissionListener(missionChangeListener);
+        }
+
+        ConsistencyManager.getManager().setShareWideAreaEntry("plan",syncPlansWide);
+
+        String[] addressStrings = listOfAddresses.split(";");
+        Set<InetAddress> validAddresses = new HashSet<>();
+        for (String addressString : addressStrings) {
+            try {
+                InetAddress inetAddress = Inet4Address.getByName(addressString);
+                if(!inetAddress.isLoopbackAddress() && !inetAddress.isSiteLocalAddress()) {
+                    validAddresses.add(inetAddress);
+                }
+            } catch (UnknownHostException e) {
+                e.printStackTrace();
+            }
+        }
+        ConsistencyManager.getManager().wideAreaSystemsChange(validAddresses);
     }
 
     public static void updateConnectedSystemsInterface(String[] systemNames) {
