@@ -34,6 +34,7 @@ package pt.lsts.neptus.plugins.dataSync;
 
 import com.google.common.eventbus.Subscribe;
 import pt.lsts.imc.Event;
+import pt.lsts.neptus.NeptusLog;
 import pt.lsts.neptus.comm.manager.imc.ImcId16;
 import pt.lsts.neptus.comm.manager.imc.ImcMsgManager;
 import pt.lsts.neptus.console.ConsoleLayout;
@@ -48,15 +49,20 @@ import pt.lsts.neptus.plugins.dataSync.CRDTs.PlanCRDT;
 import pt.lsts.neptus.plugins.update.Periodic;
 import pt.lsts.neptus.types.mission.MissionType;
 import pt.lsts.neptus.types.mission.plan.PlanType;
+import pt.lsts.neptus.util.GuiUtils;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.LineBorder;
+import javax.swing.table.DefaultTableCellRenderer;
+import javax.swing.table.DefaultTableModel;
+import javax.swing.table.TableCellRenderer;
 import java.awt.*;
-import java.util.Arrays;
-import java.util.Map;
-import java.util.Set;
-import java.util.TreeMap;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.text.DateFormat;
+import java.time.Instant;
+import java.util.*;
 
 
 /**
@@ -70,6 +76,7 @@ public class DataSynchronization extends ConsolePanel {
     // Interface Components
     private static JList<String> connectedSystems = null;
     private static JLabel localState = null;
+    private static JTable crdtTable = null;
 
     MissionChangeListener missionChangeListener = new MissionChangeListener() {
         private TreeMap<String, PlanType> lastPlanList = null;
@@ -141,13 +148,40 @@ public class DataSynchronization extends ConsolePanel {
 //            ::::::::
         }
     };
-    ConsistencyManager.ChangeListener planChangeListener = new ConsistencyManager.ChangeListener() {
+    ConsistencyManager.PlanChangeListener planChangeListener = new ConsistencyManager.PlanChangeListener() {
         @Override
-        public void change(Object planCRDT) {
-            PlanType newPlan = ((PlanCRDT) planCRDT).payload(getConsole().getMission());
+        public void change(PlanCRDT planCRDT) {
+            PlanType newPlan = planCRDT.payload(getConsole().getMission());
             getConsole().getMission().addPlan(newPlan);
             getConsole().getMission().save(true);
             getConsole().updateMissionListeners();
+        }
+    };
+    private ConsistencyManager.CRDTChangeListener crdtChangeListener = new ConsistencyManager.CRDTChangeListener() {
+        @Override
+        public void change(UUID id, CRDT newData, ImcId16 origSystem, String origName) {
+            DefaultTableModel model = (DefaultTableModel) crdtTable.getModel();
+            Vector<Vector> dataVector = model.getDataVector();
+
+            int idColIndex = model.findColumn("ID");
+            if(idColIndex == -1) {
+                NeptusLog.pub().error("Column Id not found in data synchronization table update");
+            }
+
+            int removedRow = -1;
+            for (int i = 0; i < dataVector.size(); i++) {
+                Vector vector = dataVector.get(i);
+                if (vector.get(idColIndex) == id) {
+                    removedRow = i;
+                    break;
+                }
+            }
+            if(removedRow != -1) {
+                model.removeRow(removedRow);
+            }
+//            "Name","Original System","Last Update", "ID"
+            model.addRow(new Object[]{origName,origSystem, Date.from(Instant.now()),id});
+            model.fireTableDataChanged();
         }
     };
 
@@ -237,8 +271,64 @@ public class DataSynchronization extends ConsolePanel {
 //        statusPane.setDividerLocation(320);
 //        tabsPane.add("Status", statusPane);
 //        tabsPane.add("tetsing", getTestingPanel());
-//
-//        GuiUtils.testFrame(tabsPane, "DataSync", 800, 600);
+
+        GuiUtils.testFrame(getCRDTInfoPanel(), "DataSync", 800, 600);
+    }
+
+    // CRDT LIST PANEL
+    private static JComponent getCRDTInfoPanel() {
+
+        TableCellRenderer dateCellRenderer = new DefaultTableCellRenderer() {
+//            SimpleDateFormat f = new SimpleDateFormat("HH:mm:ss");
+
+            public Component getTableCellRendererComponent(JTable table,
+                                                           Object value, boolean isSelected, boolean hasFocus,
+                                                           int row, int column) {
+                if( value instanceof Date) {
+                    value = DateFormat.getTimeInstance().format(value);
+                }
+                return super.getTableCellRendererComponent(table, value, isSelected,
+                        hasFocus, row, column);
+            }
+        };
+
+        String[] column_names = {"Name","Original System","Last Update", "ID"};
+        DefaultTableModel table_model = new DefaultTableModel(column_names,0) {
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return false;
+            }
+        };
+        crdtTable = new JTable(table_model);
+        crdtTable.getColumn("Last Update").setCellRenderer(dateCellRenderer);
+
+        final JPopupMenu popupMenu = getCRDTOptionsMenu();
+        crdtTable.setComponentPopupMenu(popupMenu);
+        crdtTable.setAutoCreateRowSorter(true);
+        // prevent edition of cells
+        crdtTable.setEnabled(false);
+
+//        Calendar calendar = Calendar.getInstance();
+//        table_model.addRow(new Object[]{"serial","MedName",calendar.getTime(), UUID.randomUUID()});
+//        calendar.roll(Calendar.HOUR, -3);
+//        table_model.addRow(new Object[]{"serial6","MedName3",calendar.getTime(), UUID.randomUUID()});
+//        System.out.println(table_model.getDataVector());
+
+        return new JScrollPane(crdtTable);
+    }
+
+    private static JPopupMenu getCRDTOptionsMenu() {
+        final JPopupMenu popupMenu = new JPopupMenu();
+        JMenuItem saveAsLocal = new JMenuItem("Save as Local");
+        saveAsLocal.addActionListener(new ActionListener() {
+
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                JOptionPane.showMessageDialog(JOptionPane.getRootFrame(), "Saved as local variable");
+            }
+        });
+        popupMenu.add(saveAsLocal);
+        return popupMenu;
     }
 
     @Subscribe
@@ -264,6 +354,7 @@ public class DataSynchronization extends ConsolePanel {
     private void registerListeners() {
         this.getConsole().addMissionListener(missionChangeListener);
         ConsistencyManager.getManager().addPlanListener(planChangeListener);
+        ConsistencyManager.getManager().addCRDTListener(crdtChangeListener);
         ElectionManager.getManager().registerActiveSystemListener(DataSynchronization::
         updateConnectedSystemsInterface);
         ElectionManager.getManager().registerStateListener(DataSynchronization::updateLocalNetworkState);
@@ -299,6 +390,7 @@ public class DataSynchronization extends ConsolePanel {
         JTabbedPane tabsPane = new JTabbedPane(SwingConstants.TOP);
 
         tabsPane.add("Testing", getTestingPanel());
+        tabsPane.add("CRDTs", getCRDTInfoPanel());
 
         JSplitPane statusPane = getStatusPanel();
         statusPane.setDividerLocation(320);

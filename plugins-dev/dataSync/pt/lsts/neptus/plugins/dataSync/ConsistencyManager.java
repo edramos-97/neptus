@@ -12,6 +12,7 @@ import java.net.InetAddress;
 import java.util.*;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -31,7 +32,8 @@ public class ConsistencyManager {
 
     HashMap<String,InetAddress> wellKnownPeers = new HashMap<>();
 
-    Vector<ChangeListener> planListeners = new Vector<>();
+    Vector<CRDTChangeListener> crdtListeners = new Vector<>();
+    Vector<PlanChangeListener> planListeners = new Vector<>();
 
     public ConsistencyManager() {
         super();
@@ -98,6 +100,7 @@ public class ConsistencyManager {
     }
 
     public UUID createCRDT(String name, CRDT crdtObject) {
+        crdtObject.setName(name);
         if(nameToID.get(name) != null) {
             NeptusLog.pub().warn("Overwriting CRDT object with name \"" + name + "\"");
         }
@@ -109,6 +112,7 @@ public class ConsistencyManager {
         if(loadedComplete) {
             shareLocal(name,newID,crdtObject);
         }
+        notifyCRDTListeners(newID, crdtObject.getRemoteOriginSystem(), true);
 
         return newID;
     }
@@ -139,6 +143,7 @@ public class ConsistencyManager {
         if (updatedCrdt != null) {
             IDToCRDT.put(crdtID, updatedCrdt);
             shareLocal(name,crdtID, updatedCrdt);
+            notifyCRDTListeners(crdtID,updatedCrdt.getRemoteOriginSystem(),true);
         }
         return crdtID;
     }
@@ -169,12 +174,13 @@ public class ConsistencyManager {
                 newCRDT.setName(name);
                 IDToCRDT.put(id, newCRDT);
                 nameToID.put(name, id);
+                notifyCRDTListeners(id, newCRDT.getRemoteOriginSystem(), false);
             } else {
                 CRDT localCRDT = IDToCRDT.get(id);
                 CRDT updatedCRDT = localCRDT.updateFromNetwork(crdtData);
                 IDToCRDT.put(id,updatedCRDT);
+                notifyCRDTListeners(id, updatedCRDT.getRemoteOriginSystem(), false);
             }
-            notifyCRDTChanges(id);
         } catch (Exception e) {
             e.printStackTrace();
             NeptusLog.pub().debug("Invalid data received in CRDT message");
@@ -193,14 +199,12 @@ public class ConsistencyManager {
 
         IDToCRDT.remove(id);
 
-        Iterator<Map.Entry<String,UUID>> iterator = nameToID.entrySet().iterator();
-
-        while (iterator.hasNext()) {
-            Map.Entry<String,UUID> entry = iterator.next();
-            if (id.equals(entry.getValue())) {
-                iterator.remove();
+        nameToID.entrySet().removeIf(new Predicate<Map.Entry<String, UUID>>() {
+            @Override
+            public boolean test(Map.Entry<String, UUID> entry) {
+                return id.equals(entry.getValue());
             }
-        }
+        });
     }
 
     // READ
@@ -284,26 +288,41 @@ public class ConsistencyManager {
         ImcMsgManager.getManager().sendMessage(evtMsg, destination, "");
     }
 
-    private void notifyCRDTChanges(UUID id) {
+//    ::::::::::::::::::::::::::::::::::::::::: Change handlers
+    public void addCRDTListener(CRDTChangeListener changeListener) {
+        if (!crdtListeners.contains(changeListener))
+            crdtListeners.add(changeListener);
+    }
+
+    private void notifyCRDTListeners(UUID id, ImcId16 origin, boolean local) {
         CRDT crdt = IDToCRDT.get(id);
         System.out.println("\nNotified changes on id:" + id + "\n");
-        System.out.print("Updated Object:");
-//        System.out.println(IDToCRDT.get(id).payload());
+        if(origin == null) {
+            origin = ImcMsgManager.getManager().getLocalId();
+        }
+
+        for (CRDTChangeListener crdtListener : crdtListeners) {
+            crdtListener.change(id, crdt, origin, crdt.getTrueName());
+        }
+
+        if (local) {
+            return;
+        }
+
+        // in case of a delete operation crdt will be null and "instance of" always false
         if(crdt instanceof PlanCRDT){
             notifyPlanListeners((PlanCRDT) crdt);
         }
     }
 
-//    ::::::::::::::::::::::::::::::::::::::::: Change handlers
-
-    public void addPlanListener(ChangeListener mcl) {
-        if (!planListeners.contains(mcl))
-            planListeners.add(mcl);
+    public void addPlanListener(PlanChangeListener changeListener) {
+        if (!planListeners.contains(changeListener))
+            planListeners.add(changeListener);
     }
 
     public void notifyPlanListeners(PlanCRDT plan) {
-        for (ChangeListener list: planListeners) {
-            list.change(plan);
+        for (PlanChangeListener listener: planListeners) {
+            listener.change(plan);
         }
     }
 
@@ -481,7 +500,10 @@ public class ConsistencyManager {
         }
     };
 
-    public interface ChangeListener {
-        public void change(Object newData);
+    public interface CRDTChangeListener {
+        public void change(UUID id, CRDT newData, ImcId16 origSystem, String origName);
+    }
+    public interface PlanChangeListener {
+        public void change(PlanCRDT newData);
     }
 }
