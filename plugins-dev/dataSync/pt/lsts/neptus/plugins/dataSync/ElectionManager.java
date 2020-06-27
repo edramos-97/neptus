@@ -30,6 +30,8 @@ public class ElectionManager {
     private ImcId16 leaderId = null;
     private boolean isLeader = false;
     private boolean hasLeader = false;
+
+    private int lastNoActiveSystems = 0;
     private int acceptCounter = 0;
 
     private volatile PerformElection performElection;
@@ -230,15 +232,23 @@ public class ElectionManager {
 
     // :::::::::::::::::::::::::::::::: General Methods
     public void updateConnectedSystems() {
+        ImcId16[] activeSystems = getActiveSystems();
+
         if(!initialized) {
+            lastNoActiveSystems = activeSystems.length;
             return;
         }
 
-        ImcId16[] activeSystems = getActiveSystems();
         String[] systemNames = Arrays.stream(activeSystems)
                 .map((id) -> ImcMsgManager.getManager().getCommInfoById(id).toString()).toArray(String[]::new);
 
         notifyActiveSystemListeners(systemNames);
+
+        if(activeSystems.length >= 2 * lastNoActiveSystems && isLeader) {
+            ImcMsgManager.getManager().sendMessage(new Event("leader",""),ImcId16.BROADCAST_ID,"Broadcast");
+            lastNoActiveSystems = activeSystems.length;
+            return;
+        }
 
         if(hasLeader && !isLeader) {
             SystemImcMsgCommInfo leaderInfo = ImcMsgManager.getManager().getCommInfoById(leaderId);
@@ -247,8 +257,8 @@ public class ElectionManager {
                 if(activeSystems.length == 0) {
                     privateExecutor.submit(new Startup());
                 } else {
-                    setLeader(null);
                     performElection = new PerformElection(leaderId.toPrettyString());
+                    setLeader(null);
                     privateExecutor.submit(performElection);
                 }
             }
@@ -315,6 +325,7 @@ public class ElectionManager {
             setState(ElectionState.CANDIDATE);
             ImcMsgManager.getManager()
                     .sendMessage(new Event("candidate", candidateId), ImcId16.BROADCAST_ID, "Broadcast");
+            setLeader(null);
             acceptCounter = 0;
             try {
 //            wait 5sec

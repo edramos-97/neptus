@@ -301,6 +301,48 @@ public class DataSynchronization extends ConsolePanel implements ConfigurationLi
         GuiUtils.testFrame(getCRDTInfoPanel(), "DataSync", 800, 600);
     }
 
+    // PROPERTIES PANEL
+    private LinkedHashMap<String,?> getPropertiesAsMap() {
+        LinkedHashMap<String, Object> propertiesMap = new LinkedHashMap<>();
+
+        propertiesMap.put("addresses", listOfAddresses);
+
+        if (syncPlansLocal) {
+            propertiesMap.put("syncPlansLocal", "");
+        }
+        if (syncPlansWide) {
+            propertiesMap.put("syncPlansWide", "");
+        }
+
+        return propertiesMap;
+    }
+
+    private void applyProperties(LinkedHashMap<String,?> propertiesMap) {
+        String listOfAddresses = (String) propertiesMap.get("addresses");
+        if(listOfAddresses != null) {
+            this.listOfAddresses = listOfAddresses;
+        }
+        syncPlansLocal = propertiesMap.containsKey("syncPlansLocal");
+        syncPlansWide = propertiesMap.containsKey("syncPlansWide");
+
+        propertiesChanged();
+    }
+
+    private JButton getSetLeaderPropsBtn() {
+        JButton setLeaderProps = new JButton("Set System Props");
+        setLeaderProps.setToolTipText("Send local configuration to be applied in the chosen system");
+
+        LinkedHashMap<String, ?> propertiesMap = getPropertiesAsMap();
+
+        Event evtMsg = new Event("data_configuration", "placeholder");
+        evtMsg.setData(propertiesMap);
+
+        setLeaderProps.addActionListener(e -> {
+            ImcMsgManager.getManager().sendMessage(evtMsg, ImcId16.BROADCAST_ID, "Broadcast");
+        });
+        return setLeaderProps;
+    }
+
     // CRDT LIST PANEL
     private static JComponent getCRDTInfoPanel() {
 
