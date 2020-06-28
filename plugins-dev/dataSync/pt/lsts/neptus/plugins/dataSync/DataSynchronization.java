@@ -298,7 +298,37 @@ public class DataSynchronization extends ConsolePanel implements ConfigurationLi
 //        tabsPane.add("Status", statusPane);
 //        tabsPane.add("tetsing", getTestingPanel())
 
-        GuiUtils.testFrame(getCRDTInfoPanel(), "DataSync", 800, 600);
+        Dictionary<String, String, Pair<String,String>> dict1 = new Dictionary<>();
+        Dictionary<String, String, Pair<String,String>> dict2 = new Dictionary<>();
+        ImcId16 myId = new ImcId16("0x4001");
+        dict2.myId = myId;
+        dict2.versionVector.put(myId,0L);
+
+//        dict1.add(new Pair<>("x", "1"));
+//        dict1.add(new Pair<>("x", "1"));
+//        System.out.println(dict1.versionVector);
+//        dict1.add(new Pair<>("x", "4"));
+//        System.out.println(dict1.versionVector);
+//        dict1.add(new Pair<>("y", "2"));
+//        dict1.add(new Pair<>("z", "3"));
+//        System.out.println(dict1.versionVector);
+//
+//        System.out.println(dict1.payload());
+//
+//        dict2.merge(dict1);
+//        System.out.println(dict2.versionVector);
+//        System.out.println(dict2.payload());
+//
+//        dict2.add(new Pair<>("a","1"));
+//        dict1.add(new Pair<>("x","5"));
+//
+//        dict2.add(new Pair<>("x","6"));
+
+        dict2.merge(dict1);
+        dict1.merge(dict2);
+        System.out.println(dict1.payload());
+        System.out.println(dict2.payload());
+//        GuiUtils.testFrame(getCRDTInfoPanel(), "DataSync", 800, 600);
     }
 
     // PROPERTIES PANEL

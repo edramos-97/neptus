@@ -156,6 +156,7 @@ public class ElectionManager {
 
     private void onCandidate(String data, ImcId16 sender) {
         handleCandidate = new HandleCandidate(data, sender);
+        privateExecutor.submit(handleCandidate);
     }
 
     private void onAccept(String data, ImcId16 sender) {
@@ -244,11 +245,13 @@ public class ElectionManager {
 
         notifyActiveSystemListeners(systemNames);
 
-        if(activeSystems.length >= 2 * lastNoActiveSystems && isLeader) {
+        if(activeSystems.length != 0 && activeSystems.length >= 2 * lastNoActiveSystems && isLeader) {
             ImcMsgManager.getManager().sendMessage(new Event("leader",""),ImcId16.BROADCAST_ID,"Broadcast");
             lastNoActiveSystems = activeSystems.length;
             return;
         }
+
+        lastNoActiveSystems = activeSystems.length;
 
         if(hasLeader && !isLeader) {
             SystemImcMsgCommInfo leaderInfo = ImcMsgManager.getManager().getCommInfoById(leaderId);
@@ -258,8 +261,7 @@ public class ElectionManager {
                     privateExecutor.submit(new Startup());
                 } else {
                     performElection = new PerformElection(leaderId.toPrettyString());
-                    setLeader(null);
-                    privateExecutor.submit(performElection);
+                    privateExecutor.submit(performElection);//, 1000, TimeUnit.MILLISECONDS);
                 }
             }
             return;
@@ -348,6 +350,7 @@ public class ElectionManager {
         public HandleCandidate(String candidateId, ImcId16 senderId) {
             super();
             this.candidateId = candidateId;
+            this.senderId = senderId;
         }
 
         @Override

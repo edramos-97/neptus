@@ -1,37 +1,29 @@
 package pt.lsts.neptus.plugins.dataSync.CRDTs;
 
-import pt.lsts.imc.IMCMessage;
-import pt.lsts.imc.PlanManeuver;
-import pt.lsts.imc.PlanTransition;
-import pt.lsts.neptus.NeptusLog;
 import pt.lsts.neptus.comm.manager.imc.ImcId16;
 import pt.lsts.neptus.comm.manager.imc.ImcMsgManager;
-import pt.lsts.neptus.i18n.I18n;
+import pt.lsts.neptus.data.Pair;
 
 import java.io.Serializable;
 import java.util.*;
 
 
-/*
-Implementation based on the work
-Bieniusa, Annette, et al. "An optimized conflict-free replicated set." arXiv preprint arXiv:1210.3368 (2012).
-*/
-public class ORSet<E extends IMCMessage> extends CRDT implements Serializable {
+public class Dictionary<K, V, E extends Pair<K,V>> extends CRDT implements Serializable {
 
-    ImcId16 myId = ImcMsgManager.getManager().getLocalId();
+    public ImcId16 myId = ImcMsgManager.getManager().getLocalId();
 
-    Set<Tuple<E, Long, ImcId16>> set;
-    Map<ImcId16, Long> versionVector;
+    public Set<Tuple<E, Long, ImcId16>> set;
+    public Map<ImcId16, Long> versionVector;
 
     VectorClock clock = new VectorClock();
 
-    public ORSet() {
+    public Dictionary() {
         set = new HashSet<>();
         versionVector = new TreeMap<>();
         versionVector.put(myId, clock.value());
     }
 
-    public ORSet(Set<E> existingSet) {
+    public Dictionary(Set<E> existingSet) {
         set = new HashSet<>();
         versionVector = new TreeMap<>();
         HashSet<E> tempSet = new HashSet<E>(existingSet);
@@ -47,6 +39,9 @@ public class ORSet<E extends IMCMessage> extends CRDT implements Serializable {
     }
 
     public void add(E element) {
+        if(lookup(element)){
+            return;
+        }
         clock.incrementVal();
 
         if (clock.value() > versionVector.get(myId)) {
@@ -54,7 +49,7 @@ public class ORSet<E extends IMCMessage> extends CRDT implements Serializable {
                     ImcId16>>() {
                 @Override
                 public boolean call(Tuple<E, Long, ImcId16> tuple) {
-                    return !tuple.getElement().equals(element) || tuple.getTime() > clock.value();
+                    return !tuple.getElement().first().equals(element.first()) || tuple.getTime() > clock.value();
                 }
             });
             set.add(new Tuple<>(element, clock.value(), myId));
@@ -66,22 +61,23 @@ public class ORSet<E extends IMCMessage> extends CRDT implements Serializable {
         set = Operations.filtered(set, new Operations.Predicate<Tuple<E, Long, ImcId16>>() {
             @Override
             public boolean call(Tuple<E, Long, ImcId16> tuple) {
-                return !sameElements(tuple.getElement(),element);
+                return !tuple.getElement().equals(element);
             }
         });
     }
 
-    public ORSet<E> merge(ORSet<E> anotherSet) {
-        Set<Tuple<E, Long, ImcId16>> temp = new HashSet<>(set);
-        temp.retainAll(anotherSet.set);
-        temp = anotherSet.set;
-        temp = Operations.filtered(temp, new Operations.Predicate<Tuple<E, Long, ImcId16>>() {
+    public Dictionary<K, V, E> merge(Dictionary<K, V, E> anotherSet) {
+//        Set<Tuple<E, Long, ImcId16>> temp = new HashSet<>(set);
+//        temp.retainAll(anotherSet.set);
+//        temp = anotherSet.set;
+        Set<Tuple<E, Long, ImcId16>> temp = Operations.filtered(anotherSet.set, new Operations.Predicate<Tuple<E, Long,
+                ImcId16>>() {
             @Override
             public boolean call(Tuple<E, Long, ImcId16> tuple) {
                 for (Tuple<E, Long, ImcId16> innerTuple : set) {
-                    IMCMessage innerElem = innerTuple.getElement();
-                    IMCMessage elem = tuple.getElement();
-                    if (sameElements(innerElem, elem)) {
+                    E innerElem = innerTuple.getElement();
+                    E elem = tuple.getElement();
+                    if (innerElem.equals(elem)) {
                         return true;
                     }
                 }
@@ -116,8 +112,8 @@ public class ORSet<E extends IMCMessage> extends CRDT implements Serializable {
                 return !Operations.filtered(union, new Operations.Predicate<Tuple<E, Long, ImcId16>>() {
                     @Override
                     public boolean call(Tuple<E, Long, ImcId16> tuple1) {
-                        if (sameElements(tuple.getElement(), tuple1.getElement()) && tuple.getReplicaId()
-                                .equals(tuple1.getReplicaId())) {
+                        if (tuple.getElement().equals(tuple1.getElement()) && tuple.getReplicaId()
+                                .equals(tuple1.getReplicaId()) || tuple.getElement().first().equals(tuple1.getElement().first())) {
                             return tuple.getTime() > tuple1.getTime();
                         } else {
                             return false;
@@ -149,29 +145,30 @@ public class ORSet<E extends IMCMessage> extends CRDT implements Serializable {
 
     public LinkedHashMap<String, ?> toLinkedHashMap(String localName, UUID id, String genericType) {
         LinkedHashMap<String, Object> map = new LinkedHashMap();
-        map.put("set", Operations.mapped(set, new Operations.Mapper<Tuple<E, Long, ImcId16>, String>() {
-            @Override
-            public String call(Tuple<E, Long, ImcId16> element) {
-                IMCMessage msg = element.getElement();
-                String id;
-                if (msg instanceof PlanManeuver) {
-                    id = ((PlanManeuver) msg).getManeuverId();
-                } else if (msg instanceof PlanTransition) {
-                    id = ((PlanTransition) msg).getSourceMan();
-                } else {
-                    id = "";
-                }
-                return "(" + id + "," + element.getTime() + "," + element
-                        .getReplicaId() +
-                       ")";
-            }
-        }));
-        map.put("msg_set", Operations.mapped(set, new Operations.Mapper<Tuple<E, Long, ImcId16>, IMCMessage>() {
-            @Override
-            public IMCMessage call(Tuple<E, Long, ImcId16> element) {
-                return element.getElement();
-            }
-        }));
+//        map.put("set", Operations.mapped(set, new Operations.Mapper<Tuple<E, Long, ImcId16>, String>() {
+//            @Override
+//            public String call(Tuple<E, Long, ImcId16> element) {
+//                IMCMessage msg = element.getElement();
+//                String id;
+//                if (msg instanceof PlanManeuver) {
+//                    id = ((PlanManeuver) msg).getManeuverId();
+//                } else if (msg instanceof PlanTransition) {
+//                    id = ((PlanTransition) msg).getSourceMan();
+//                } else {
+//                    id = "";
+//                }
+//                return "(" + id + "," + element.getTime() + "," + element
+//                        .getReplicaId() +
+//                       ")";
+//            }
+//        }));
+//        map.put("msg_set", Operations.mapped(set, new Operations.Mapper<Tuple<E, Long, ImcId16>, IMCMessage>() {
+//            @Override
+//            public IMCMessage call(Tuple<E, Long, ImcId16> element) {
+//                return element.getElement();
+//            }
+//        }));
+        map.put("set", set);
         map.put("versionVector", versionVector);
         map.put("type", genericType);
         return map;
@@ -195,21 +192,8 @@ public class ORSet<E extends IMCMessage> extends CRDT implements Serializable {
 
         HashSet<Tuple<E, Long, ImcId16>> tuples = new HashSet<>();
 
-        for (E e : dataSet) {
-            if (e instanceof PlanManeuver) {
-                String manId = ((PlanManeuver) e).getManeuverId();
-                Tuple<E, Long, ImcId16> manTuple = emptyTuples.get(manId);
-                manTuple.element = e;
-                tuples.add(manTuple);
-            } else if (e instanceof PlanTransition) {
-                String transId = ((PlanTransition) e).getSourceMan();
-                Tuple<E, Long, ImcId16> transTuple = emptyTuples.get(transId);
-                transTuple.element = e;
-                tuples.add(transTuple);
-            } else {
-                NeptusLog.pub().warn(I18n.text("No configured class interpretation in data synchronization ORSet"));
-            }
-        }
+//        for (E e : dataSet) {
+//        }
 
         dataMap.put("set",tuples);
 
