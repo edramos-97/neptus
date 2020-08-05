@@ -324,14 +324,15 @@ public class ElectionManager {
                 return;
             }
 
+            setLeader(null);
             setState(ElectionState.CANDIDATE);
             ImcMsgManager.getManager()
                     .sendMessage(new Event("candidate", candidateId), ImcId16.BROADCAST_ID, "Broadcast");
-            setLeader(null);
             acceptCounter = 0;
             try {
 //            wait 5sec
                 Thread.sleep(1000);
+                setState(ElectionState.IDLE);
             } catch (InterruptedException e) {
                 if (!hasLeader){
                     NeptusLog.pub().debug("Perform Election thread was interrupted in Election Manager");

@@ -80,25 +80,48 @@ import java.util.*;
 @Popup(pos = POSITION.RIGHT, width = 800, height = 600)
 public class DataSynchronization extends ConsolePanel implements ConfigurationListener {
 
-    @NeptusProperty(name = "List of well-known systems", category = "Wide-area connections", userLevel =
+    @NeptusProperty(name = "List of well-known systems", category = "Wide-area Sync Options", userLevel =
             NeptusProperty.LEVEL.ADVANCED,
             description = "Keeps the addresses of well-known nodes to exchange data with")
-    private String listOfAddresses = "";
+    private static String listOfAddresses = "";
 
-    @NeptusProperty(name = "Synchronize Plans Locally", category = "CRDT Sync Options", userLevel =
+    @NeptusProperty(name = "Synchronization Period", category = "Wide-area Sync Options", userLevel =
+            NeptusProperty.LEVEL.ADVANCED,
+            description = "If this system is elected the local speaker, represents the interval between attempts to " +
+                          "synchronized with systems connected over a wide-area " +
+                          "network, a value of zero will disable synchronization", units = "minutes")
+    private static long syncPeriod = 0;
+
+    @NeptusProperty(name = "Synchronize Plans", category = "Local Network CDRT Sync", userLevel =
             NeptusProperty.LEVEL.ADVANCED,
             description = "Whether Plans should be synchronized in the local network")
-    private boolean syncPlansLocal = true;
+    private static boolean syncPlansLocal = true;
 
-    @NeptusProperty(name = "Synchronize Plans Wide-Area", category = "CRDT Sync Options", userLevel =
+    @NeptusProperty(name = "Synchronize Plans", category = "Wide-area Network CRDT Sync", userLevel =
             NeptusProperty.LEVEL.ADVANCED,
             description = "Whether Plans should be synchronized over wide-area connections")
-    private boolean syncPlansWide = true;
+    private static boolean syncPlansWide = true;
 
     // Interface Components
     private static JList<String> connectedSystems = null;
     private static JLabel localState = null;
+    private static JButton setLeaderConfigBtn = null;
     private static JTable crdtTable = null;
+    private static JTable remoteSystemsTable = null;
+
+    private static TableCellRenderer dateCellRenderer = new DefaultTableCellRenderer() {
+//            SimpleDateFormat f = new SimpleDateFormat("HH:mm:ss");
+
+        public Component getTableCellRendererComponent(JTable table,
+                                                       Object value, boolean isSelected, boolean hasFocus,
+                                                       int row, int column) {
+            if( value instanceof Date) {
+                value = DateFormat.getTimeInstance().format(value);
+            }
+            return super.getTableCellRendererComponent(table, value, isSelected,
+                    hasFocus, row, column);
+        }
+    };
 
     MissionChangeListener missionChangeListener = new MissionChangeListener() {
         private TreeMap<String, PlanType> lastPlanList = null;
@@ -215,54 +238,6 @@ public class DataSynchronization extends ConsolePanel implements ConfigurationLi
         super(console);
     }
 
-    public static JSplitPane getStatusPanel() {
-
-        JPanel statusPanel = new JPanel();
-        statusPanel.setLayout(new BoxLayout(statusPanel, BoxLayout.PAGE_AXIS));
-        statusPanel.setBorder(new EmptyBorder(10, 10, 10, 10));
-
-        JLabel label1 = new JLabel("Local Network State");
-        localState = new JLabel("IDLE");
-        localState.setOpaque(true);
-        localState.setMaximumSize(new Dimension(Short.MAX_VALUE, localState.getMaximumSize().height * 5));
-        localState.setHorizontalAlignment(SwingConstants.CENTER);
-        localState.setBorder(BorderFactory.createLineBorder(Color.BLACK, 2, true));
-        localState.setBackground(Color.decode(ElectionManager.getManager().getStateColor()));
-
-        JLabel label2 = new JLabel("Wide Area Network State");
-        JLabel wideAreaState = new JLabel("IDLE");
-        wideAreaState.setOpaque(true);
-        wideAreaState.setMaximumSize(new Dimension(Short.MAX_VALUE, wideAreaState.getMaximumSize().height * 5));
-        wideAreaState.setHorizontalAlignment(SwingConstants.CENTER);
-        wideAreaState.setBorder(BorderFactory.createLineBorder(Color.BLACK, 2, true));
-        wideAreaState.setBackground(Color.decode(ElectionManager.getManager().getStateColor()));
-
-        statusPanel.add(label1);
-        statusPanel.add(localState);
-        statusPanel.add(Box.createRigidArea(new Dimension(0, 10)));
-        statusPanel.add(label2);
-        statusPanel.add(wideAreaState);
-        statusPanel.add(Box.createVerticalGlue());
-
-        JPanel systemsPanel = new JPanel();
-        systemsPanel.setLayout(new BorderLayout(10, 10));
-        systemsPanel.setBorder(new EmptyBorder(10, 10, 10, 10));
-
-        JLabel label3 = new JLabel("Connected Systems");
-        connectedSystems = new JList<>();
-        connectedSystems.setBorder(new LineBorder(Color.BLACK, 2, true));
-        connectedSystems.setBackground(Color.WHITE);
-
-        systemsPanel.add(label3, BorderLayout.NORTH);
-//        systemsPanel.add(Box.createRigidArea(new Dimension(0,10)));
-        systemsPanel.add(connectedSystems, BorderLayout.CENTER);
-
-        JSplitPane statusSplitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, statusPanel, systemsPanel);
-        statusSplitPane.setEnabled(false);
-        statusSplitPane.setDividerSize(0);
-        return statusSplitPane;
-    }
-
     public static JPanel getTestingPanel() {
         FlowLayout flowLayout = new FlowLayout();
         JPanel panel = new JPanel();
@@ -298,11 +273,14 @@ public class DataSynchronization extends ConsolePanel implements ConfigurationLi
 //        tabsPane.add("Status", statusPane);
 //        tabsPane.add("tetsing", getTestingPanel())
 
-        Dictionary<String, String, Pair<String,String>> dict1 = new Dictionary<>();
-        Dictionary<String, String, Pair<String,String>> dict2 = new Dictionary<>();
-        ImcId16 myId = new ImcId16("0x4001");
-        dict2.myId = myId;
-        dict2.versionVector.put(myId,0L);
+
+//        Dictionary<String, String, Pair<String,String>> dict1 = new Dictionary<>();
+//        Dictionary<String, String, Pair<String,String>> dict2 = new Dictionary<>();
+//        ImcId16 myId = new ImcId16("0x4001");
+//        dict2.myId = myId;
+//        dict2.versionVector.put(myId,0L);
+
+
 
 //        dict1.add(new Pair<>("x", "1"));
 //        dict1.add(new Pair<>("x", "1"));
@@ -324,15 +302,15 @@ public class DataSynchronization extends ConsolePanel implements ConfigurationLi
 //
 //        dict2.add(new Pair<>("x","6"));
 
-        dict2.merge(dict1);
-        dict1.merge(dict2);
-        System.out.println(dict1.payload());
-        System.out.println(dict2.payload());
-//        GuiUtils.testFrame(getCRDTInfoPanel(), "DataSync", 800, 600);
+//        dict2.merge(dict1);
+//        dict1.merge(dict2);
+//        System.out.println(dict1.payload());
+//        System.out.println(dict2.payload());
+        GuiUtils.testFrame(getStatusPanel(), "DataSync", 800, 600);
     }
 
     // PROPERTIES PANEL
-    private LinkedHashMap<String,?> getPropertiesAsMap() {
+    private static LinkedHashMap<String,?> getPropertiesAsMap() {
         LinkedHashMap<String, Object> propertiesMap = new LinkedHashMap<>();
 
         propertiesMap.put("addresses", listOfAddresses);
@@ -358,8 +336,8 @@ public class DataSynchronization extends ConsolePanel implements ConfigurationLi
         propertiesChanged();
     }
 
-    private JButton getSetLeaderPropsBtn() {
-        JButton setLeaderProps = new JButton("Set System Props");
+    private static JButton getSetLeaderConfigBtn() {
+        JButton setLeaderProps = new JButton("Set Leader Config");
         setLeaderProps.setToolTipText("Send local configuration to be applied in the chosen system");
 
         LinkedHashMap<String, ?> propertiesMap = getPropertiesAsMap();
@@ -370,25 +348,65 @@ public class DataSynchronization extends ConsolePanel implements ConfigurationLi
         setLeaderProps.addActionListener(e -> {
             ImcMsgManager.getManager().sendMessage(evtMsg, ImcId16.BROADCAST_ID, "Broadcast");
         });
+
+        setLeaderProps.setEnabled(false);
+
         return setLeaderProps;
+    }
+
+    // STATUS PANEL
+    public static JSplitPane getStatusPanel() {
+
+        JPanel statusPanel = new JPanel();
+        statusPanel.setLayout(new BoxLayout(statusPanel, BoxLayout.PAGE_AXIS));
+        statusPanel.setBorder(new EmptyBorder(10, 10, 10, 10));
+
+        JLabel label1 = new JLabel("Local Network State");
+        localState = new JLabel("IDLE");
+        localState.setOpaque(true);
+        localState.setMaximumSize(new Dimension(Short.MAX_VALUE, localState.getMaximumSize().height * 5));
+        localState.setHorizontalAlignment(SwingConstants.CENTER);
+        localState.setBorder(BorderFactory.createLineBorder(Color.BLACK, 2, true));
+        localState.setBackground(Color.decode(ElectionManager.getManager().getStateColor()));
+
+//        JLabel label2 = new JLabel("Wide Area Network State");
+//        JLabel wideAreaState = new JLabel("IDLE");
+//        wideAreaState.setOpaque(true);
+//        wideAreaState.setMaximumSize(new Dimension(Short.MAX_VALUE, wideAreaState.getMaximumSize().height * 5));
+//        wideAreaState.setHorizontalAlignment(SwingConstants.CENTER);
+//        wideAreaState.setBorder(BorderFactory.createLineBorder(Color.BLACK, 2, true));
+//        wideAreaState.setBackground(Color.decode(ElectionManager.getManager().getStateColor()));
+
+        statusPanel.add(label1);
+        statusPanel.add(localState);
+        statusPanel.add(Box.createRigidArea(new Dimension(0, 10)));
+//        statusPanel.add(label2);
+//        statusPanel.add(wideAreaState);
+        statusPanel.add(Box.createVerticalGlue());
+        setLeaderConfigBtn = getSetLeaderConfigBtn();
+        statusPanel.add(setLeaderConfigBtn);
+
+        JPanel systemsPanel = new JPanel();
+        systemsPanel.setLayout(new BorderLayout(10, 10));
+        systemsPanel.setBorder(new EmptyBorder(10, 10, 10, 10));
+
+        JLabel label3 = new JLabel("Connected Systems");
+        connectedSystems = new JList<>();
+        connectedSystems.setBorder(new LineBorder(Color.BLACK, 2, true));
+        connectedSystems.setBackground(Color.WHITE);
+
+        systemsPanel.add(label3, BorderLayout.NORTH);
+//        systemsPanel.add(Box.createRigidArea(new Dimension(0,10)));
+        systemsPanel.add(connectedSystems, BorderLayout.CENTER);
+
+        JSplitPane statusSplitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, statusPanel, systemsPanel);
+        statusSplitPane.setEnabled(false);
+        statusSplitPane.setDividerSize(0);
+        return statusSplitPane;
     }
 
     // CRDT LIST PANEL
     private static JComponent getCRDTInfoPanel() {
-
-        TableCellRenderer dateCellRenderer = new DefaultTableCellRenderer() {
-//            SimpleDateFormat f = new SimpleDateFormat("HH:mm:ss");
-
-            public Component getTableCellRendererComponent(JTable table,
-                                                           Object value, boolean isSelected, boolean hasFocus,
-                                                           int row, int column) {
-                if( value instanceof Date) {
-                    value = DateFormat.getTimeInstance().format(value);
-                }
-                return super.getTableCellRendererComponent(table, value, isSelected,
-                        hasFocus, row, column);
-            }
-        };
 
         String[] column_names = {"Name","Original System","Last Update", "ID"};
         DefaultTableModel table_model = new DefaultTableModel(column_names,0) {
@@ -405,12 +423,6 @@ public class DataSynchronization extends ConsolePanel implements ConfigurationLi
         crdtTable.setAutoCreateRowSorter(true);
         // prevent edition of cells
         crdtTable.setEnabled(false);
-
-//        Calendar calendar = Calendar.getInstance();
-//        table_model.addRow(new Object[]{"serial","MedName",calendar.getTime(), UUID.randomUUID()});
-//        calendar.roll(Calendar.HOUR, -3);
-//        table_model.addRow(new Object[]{"serial6","MedName3",calendar.getTime(), UUID.randomUUID()});
-//        System.out.println(table_model.getDataVector());
 
         return new JScrollPane(crdtTable);
     }
@@ -479,6 +491,46 @@ public class DataSynchronization extends ConsolePanel implements ConfigurationLi
         return popupMenu;
     }
 
+    // WIDE AREA SYSTEMS LIST
+    private static JComponent getWideAreaSystems() {
+        JPanel remoteSystemsPanel = new JPanel();
+        remoteSystemsPanel.setLayout(new BoxLayout(remoteSystemsPanel, BoxLayout.Y_AXIS));
+        remoteSystemsPanel.setBorder(new EmptyBorder(10, 10, 10, 10));
+
+        // SYSTEMS TABLE
+        String[] column_names = {"Name","Address", "Last Synchronization"};
+        DefaultTableModel table_model = new DefaultTableModel(column_names,0) {
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return false;
+            }
+        };
+        remoteSystemsTable = new JTable(table_model);
+        remoteSystemsTable.getColumn("Last Synchronization").setCellRenderer(dateCellRenderer);
+
+        final JPopupMenu popupMenu = getCRDTOptionsMenu();
+        remoteSystemsTable.setComponentPopupMenu(popupMenu);
+        remoteSystemsTable.setAutoCreateRowSorter(true);
+        // prevent edition of cells
+        remoteSystemsTable.setEnabled(false);
+        JScrollPane scrollPane = new JScrollPane(remoteSystemsTable);
+        scrollPane.setAlignmentX(Component.LEFT_ALIGNMENT);
+        DefaultTableModel model = (DefaultTableModel) remoteSystemsTable.getModel();
+        model.addRow(new Object[]{"Name1", "172.123.245.678", null});
+
+        // ADD SYSTEMS BUTTON
+        JButton addSystemBtn = new JButton("Add System...");
+        addSystemBtn.addActionListener(e -> {
+            System.out.println("Adding new system");
+        });
+        addSystemBtn.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        remoteSystemsPanel.add(scrollPane);
+        remoteSystemsPanel.add(addSystemBtn);
+
+        return remoteSystemsPanel;
+    }
+
     @Subscribe
     public void on(Event evtMsg) {
         System.out.println("New Event Msg: " + evtMsg.getTopic());
@@ -540,9 +592,16 @@ public class DataSynchronization extends ConsolePanel implements ConfigurationLi
     }
 
     public static void updateLocalNetworkState(ElectionManager.ElectionState state) {
-        if (localState != null) {
-            localState.setText(state.name());
+        if (localState != null && setLeaderConfigBtn != null) {
             localState.setBackground(Color.decode(ElectionManager.getManager().getStateColor()));
+
+            if(state == ElectionManager.ElectionState.ELECTED) {
+                setLeaderConfigBtn.setEnabled(true);
+                localState.setText(state.name() + " : " + ElectionManager.getManager().getLeaderId().toPrettyString());
+            } else {
+                setLeaderConfigBtn.setEnabled(false);
+                localState.setText(state.name());
+            }
         }
         ImcId16 leaderId = ElectionManager.getManager().getLeaderId();
         if(state.equals(ElectionManager.ElectionState.ELECTED) && !leaderId.equals(ImcMsgManager.getManager().getLocalId())) {
@@ -562,19 +621,23 @@ public class DataSynchronization extends ConsolePanel implements ConfigurationLi
 
         JTabbedPane tabsPane = new JTabbedPane(SwingConstants.TOP);
 
-        tabsPane.add("Testing", getTestingPanel());
-        tabsPane.add("CRDTs", getCRDTInfoPanel());
+//        tabsPane.add("Testing", getTestingPanel());
 
         JSplitPane statusPane = getStatusPanel();
         statusPane.setDividerLocation(320);
         tabsPane.add("Status", statusPane);
 
+        tabsPane.add("CRDTs Listing", getCRDTInfoPanel());
+        tabsPane.add("Wide-Area Systems", getWideAreaSystems());
+
         add(tabsPane, BorderLayout.CENTER);
 
         registerListeners();
 
+//        ImcMsgManager.getManager().setLocalId(new ImcId16(0x4100 + new Random().nextInt() % 255));
         ElectionManager.getManager().initialize();
         ConsistencyManager.getManager();
         missionChangeListener.missionUpdated(getConsole().getMission());
     }
+
 }
